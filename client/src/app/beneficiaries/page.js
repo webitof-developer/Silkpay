@@ -48,7 +48,7 @@ export default function BeneficiariesPage() {
     setLoading(true);
     try {
       const response = await api.get('/beneficiaries');
-      setBeneficiaries(response.data);
+      setBeneficiaries(response.data?.beneficiaries || []);
     } catch (error) {
        console.error("Failed to fetch beneficiaries", error);
     } finally {
