@@ -397,6 +397,43 @@ async function testPayoutCreate() {
     }
 }
 
+async function testOneTimePayoutCreate() {
+    logSection('💸 Testing Payout Module - One-Time Create');
+    
+    // One-Time Payout doesn't need a pre-created beneficiary ID
+    // It sends raw details + source='ONE_TIME'
+    
+    const result = await makeRequest('POST', '/payouts', {
+        amount: 25,
+        currency: 'INR',
+        purpose: 'One-Time API Test',
+        notes: 'Testing source=ONE_TIME',
+        source: 'ONE_TIME',
+        beneficiary_name: 'Instant Beneficiary',
+        account_number: '112233445566',
+        ifsc_code: 'SBIN0001122',
+        upi: 'instant@upi'
+    }, true);
+
+    if (result.ok && result.data.success) {
+        logSuccess('One-Time Payout created successfully');
+        logInfo(`Payout ID: ${result.data.data._id}`);
+        logInfo(`Source: ${result.data.data.source}`);
+        
+        if (result.data.data.source === 'ONE_TIME') {
+             logSuccess('Source incorrectly persisted as ONE_TIME');
+        } else {
+             logError(`Source mismatch: Expected ONE_TIME, got ${result.data.data.source}`);
+             return false;
+        }
+        
+        return true;
+    } else {
+        logError(`Create one-time payout failed: ${result.data?.error?.message || result.error}`);
+        return false;
+    }
+}
+
 async function testPayoutList() {
     logSection('📋 Testing Payout Module - List');
     
@@ -602,6 +639,7 @@ async function runAllTests() {
         
         // Payout Module
         { name: 'Payout - Create', fn: testPayoutCreate },
+        { name: 'Payout - One-Time Create', fn: testOneTimePayoutCreate },
         { name: 'Payout - List', fn: testPayoutList },
         { name: 'Payout - Status Query', fn: testPayoutStatus },
         

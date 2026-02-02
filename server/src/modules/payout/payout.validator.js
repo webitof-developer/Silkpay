@@ -5,9 +5,18 @@ const Joi = require('joi');
  */
 exports.validateCreatePayout = (req, res, next) => {
   const schema = Joi.object({
-    beneficiary_id: Joi.string().required().messages({
+    beneficiary_id: Joi.string().when('source', {
+        is: 'ONE_TIME',
+        then: Joi.optional(),
+        otherwise: Joi.required()
+    }).messages({
       'any.required': 'Beneficiary ID is required'
     }),
+    source: Joi.string().valid('SAVED', 'ONE_TIME').default('SAVED'),
+    beneficiary_name: Joi.string().when('source', { is: 'ONE_TIME', then: Joi.required() }),
+    account_number: Joi.string().when('source', { is: 'ONE_TIME', then: Joi.required() }),
+    ifsc_code: Joi.string().when('source', { is: 'ONE_TIME', then: Joi.required() }),
+    upi: Joi.string().allow('').optional(),
     amount: Joi.number().positive().precision(2).required().messages({
       'number.positive': 'Amount must be positive',
       'number.precision': 'Amount can have maximum 2 decimal places',

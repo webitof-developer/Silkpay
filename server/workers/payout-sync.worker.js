@@ -42,12 +42,13 @@ async function syncPayoutStatuses() {
       try {
         const statusResponse = await silkpayService.queryPayout(payout.out_trade_no);
 
-        if (statusResponse.code === '0' && statusResponse.data?.status) {
-          const currentStatus = statusResponse.data.status;
+        // Service returns normalized object { status, external_id, raw }
+        if (statusResponse && statusResponse.status) {
+          const currentStatus = statusResponse.status;
 
           // Update if status changed
           if (currentStatus !== payout.status) {
-            await payoutService.updatePayoutStatus(payout, currentStatus, statusResponse.data);
+            await payoutService.updatePayoutStatus(payout, currentStatus, statusResponse.raw);
             logger.info(`Payout status updated: ${payout.out_trade_no} -> ${currentStatus}`);
           }
         }

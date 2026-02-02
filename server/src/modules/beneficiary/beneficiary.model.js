@@ -56,6 +56,11 @@ const BeneficiarySchema = new mongoose.Schema({
     enum: ['ACTIVE', 'INACTIVE'],
     default: 'ACTIVE'
   },
+  type: {
+    type: String,
+    enum: ['REGULAR', 'ONE_TIME'],
+    default: 'REGULAR'
+  },
   stats: {
     total_payouts: {
       type: Number,

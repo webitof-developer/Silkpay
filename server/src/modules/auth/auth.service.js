@@ -17,9 +17,13 @@ class AuthService {
   /**
    * Login merchant
    */
-  async login(email, password) {
+  async login(identifier, password) {
+    // Check if identifier looks like an email
+    const isEmail = identifier.includes('@');
+    const query = isEmail ? { email: identifier } : { username: identifier }; // Strict case match for username
+
     // Find merchant with password field
-    const merchant = await Merchant.findOne({ email }).select('+password');
+    const merchant = await Merchant.findOne(query).select('+password');
     
     if (!merchant) {
       const error = new Error('Invalid email or password');

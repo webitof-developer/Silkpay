@@ -3,100 +3,135 @@
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { login, forgotPassword, resetPassword } from '@/services/authService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, KeyRound, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+
+// Login Schema
+const loginSchema = z.object({
+  email: z.string().min(1, 'Email or username is required'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+// Forgot Password Schema
+const forgotSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+});
+
+// Reset Password Schema
+const resetSchema = z.object({
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotStep, setForgotStep] = useState('email'); // 'email' | 'reset'
-  const [forgotEmail, setForgotEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
 
   // Check if redirected after password reset
   const resetSuccess = searchParams?.get('reset');
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  // --- Login Form Setup ---
+  const loginForm = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: 'test@silkpay.local',
+      password: 'password123',
+    },
+  });
 
-    const formData = new FormData(e.target);
-    const email = formData.get('email');
-    const password = formData.get('password');
-
+  const onLoginSubmit = async (data) => {
     try {
-      const data = await login(email, password);
+      const response = await login(data.email, data.password);
       
       toast.success("Login Successful", {
-        description: `Welcome back, ${data.merchant.name || 'to SilkPay'}`
+        description: `Welcome back, ${response.merchant.name || 'to SilkPay'}`
       });
       
-      // Redirect to dashboard
       router.push('/');
     } catch (error) {
       console.error('Login error:', error);
-      toast.error(error.message || "Login failed");
-    } finally {
-      setLoading(false);
+      
+      // Handle Field-Specific Validation Errors
+      if (error.fields) {
+          Object.keys(error.fields).forEach((field) => {
+              loginForm.setError(field, {
+                  type: "server",
+                  message: error.fields[field]
+              });
+          });
+      } else {
+           // Handle specific auth errors
+           if (error.message.includes('Locked') || error.message.includes('attempts')) {
+               toast.error("Account Locked", { description: "Too many failed attempts. Please try again later." });
+           } else if (error.message.includes('credentials')) {
+               loginForm.setError('root', { message: "Invalid email or password" });
+               toast.error("Invalid credentials");
+           } else {
+               toast.error(error.message || "Login failed");
+           }
+      }
     }
   };
 
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  // --- Forgot Password Form Setup ---
+  const forgotForm = useForm({
+    resolver: zodResolver(forgotSchema),
+    defaultValues: { email: '' },
+  });
 
+  const onForgotSubmit = async (data) => {
     try {
-      // Call forgot password API
-      const data = await forgotPassword(forgotEmail);
+      const response = await forgotPassword(data.email);
 
       toast.success("Reset Link Sent", {
         description: "Check your email for password reset instructions."
       });
       
-      // In development, show the token for testing
-      if (data.data?.token) {
-        // Only log in development (security: don't expose token in production)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Reset token (dev):', data.data.token);
-        }
-        setResetToken(data.data.token);
+      // Development Helper (Removed logging for security in production, but logic logic preserved if needed for testing flow)
+      if (response.data?.token) {
+        setResetToken(response.data.token);
         setForgotStep('reset');
       } else {
-        // In production, just close modal (user checks email)
         setShowForgot(false);
-        setForgotEmail('');
+        forgotForm.reset();
       }
     } catch (error) {
       console.error('Forgot password error:', error);
       toast.error(error.message || "Failed to send reset link");
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const newPassword = formData.get('newPassword');
-    const confirmPassword = formData.get('confirmPassword');
+  // --- Reset Password Form Setup ---
+  const resetForm = useForm({
+    resolver: zodResolver(resetSchema),
+    defaultValues: { newPassword: '', confirmPassword: '' },
+  });
 
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords don't match");
-      return;
-    }
-
-    setLoading(true);
-
+  const onResetSubmit = async (data) => {
     try {
-      await resetPassword(resetToken, newPassword);
+      await resetPassword(resetToken, data.newPassword);
 
       toast.success("Password Reset Successful", {
         description: "You can now login with your new password"
@@ -104,11 +139,9 @@ function LoginForm() {
       setShowForgot(false);
       setForgotStep('email');
       setResetToken('');
-      setForgotEmail('');
+      resetForm.reset();
     } catch (error) {
       toast.error(error.message || "Failed to reset password");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -141,61 +174,82 @@ function LoginForm() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input 
-                            id="email" 
+                <Form {...loginForm}>
+                    <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                        <FormField
+                            control={loginForm.control}
                             name="email"
-                            type="email" 
-                            placeholder="name@example.com" 
-                            required 
-                            defaultValue="test@silkpay.local" 
-                            className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white placeholder:text-muted-foreground/50"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email or Username</FormLabel>
+                                    <FormControl>
+                                        <Input 
+                                            placeholder="username or email@example.com" 
+                                            className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white placeholder:text-muted-foreground/50"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
                         />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative">
-                            <Input 
-                                id="password" 
-                                name="password"
-                                type={showPassword ? "text" : "password"}
-                                required 
-                                defaultValue="password123" 
-                                className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white pr-10"
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                onClick={() => setShowPassword(!showPassword)}
-                            >
-                                {showPassword ? (
-                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                    <Eye className="h-4 w-4 text-muted-foreground" />
-                                )}
-                            </Button>
+                        
+                        <FormField
+                            control={loginForm.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                        <div className="relative">
+                                            <Input 
+                                                type={showPassword ? "text" : "password"}
+                                                className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white pr-10"
+                                                {...field}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                            >
+                                                {showPassword ? (
+                                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {/* Forgot Password Link */}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowForgot(true)}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Forgot password?
+                          </button>
                         </div>
-                    </div>
+                        
+                        {loginForm.formState.errors.root && (
+                            <div className="text-[0.8rem] font-medium text-destructive text-center">
+                                {loginForm.formState.errors.root.message}
+                            </div>
+                        )}
 
-                    {/* Forgot Password Link */}
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowForgot(true)}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-
-                    <Button type="submit" className="w-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all duration-200" disabled={loading}>
-                        {loading ? "Signing in..." : "Sign in"}
-                    </Button>
-                </form>
+                        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all duration-200" disabled={loginForm.formState.isSubmitting}>
+                            {loginForm.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {loginForm.formState.isSubmitting ? "Signing in..." : "Sign in"}
+                        </Button>
+                    </form>
+                </Form>
             </CardContent>
             <CardFooter className="flex flex-col gap-4 text-xs text-center text-muted-foreground pb-6">
                 <div className="text-muted-foreground">
@@ -205,7 +259,7 @@ function LoginForm() {
             </CardFooter>
           </Card>
         ) : (
-          // FORGOT PASSWORD FORM
+          // FORGOT/RESET PASSWORD FLOW
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
             <CardHeader className="space-y-1">
               <div className="flex items-center gap-2 mb-2">
@@ -216,6 +270,7 @@ function LoginForm() {
                     setShowForgot(false);
                     setForgotStep('email');
                     setResetToken('');
+                    forgotForm.reset();
                   }}
                   className="h-8 w-8 p-0"
                 >
@@ -234,62 +289,82 @@ function LoginForm() {
             </CardHeader>
             <CardContent>
               {forgotStep === 'email' ? (
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="forgot-email">Email</Label>
-                      <Input 
-                        id="email" 
-                        name="email"
-                        type="email" 
-                        placeholder="name@example.com" 
-                        required
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
-                        className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white placeholder:text-muted-foreground/50"
-                      />
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary/90" 
-                    disabled={loading}
-                  >
-                    {loading ? "Sending..." : "Send Reset Link"}
-                  </Button>
-                </form>
+                <Form {...forgotForm}>
+                    <form onSubmit={forgotForm.handleSubmit(onForgotSubmit)} className="space-y-4">
+                        <FormField
+                            control={forgotForm.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                        <Input 
+                                            placeholder="name@example.com" 
+                                            className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white placeholder:text-muted-foreground/50"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button 
+                            type="submit" 
+                            className="w-full bg-primary hover:bg-primary/90" 
+                            disabled={forgotForm.formState.isSubmitting}
+                        >
+                            {forgotForm.formState.isSubmitting ? "Sending..." : "Send Reset Link"}
+                        </Button>
+                    </form>
+                </Form>
               ) : (
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input 
-                      id="newPassword" 
-                      name="newPassword"
-                      type="password" 
-                      placeholder="Enter new password" 
-                      required 
-                      minLength={6}
-                      className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input 
-                      id="confirmPassword" 
-                      name="confirmPassword"
-                      type="password" 
-                      placeholder="Confirm new password" 
-                      required 
-                      minLength={6}
-                      className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white"
-                    />
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-primary hover:bg-primary/90" 
-                    disabled={loading}
-                  >
-                    {loading ? "Resetting..." : "Reset Password"}
-                  </Button>
-                </form>
+                <Form {...resetForm}>
+                    <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
+                        <FormField
+                            control={resetForm.control}
+                            name="newPassword"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>New Password</FormLabel>
+                                    <FormControl>
+                                        <Input 
+                                            type="password"
+                                            placeholder="Enter new password" 
+                                            className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={resetForm.control}
+                            name="confirmPassword"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Confirm Password</FormLabel>
+                                    <FormControl>
+                                        <Input 
+                                            type="password"
+                                            placeholder="Confirm new password" 
+                                            className="bg-black/20 border-white/5 focus-visible:ring-primary/50 text-white"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button 
+                            type="submit" 
+                            className="w-full bg-primary hover:bg-primary/90" 
+                            disabled={resetForm.formState.isSubmitting}
+                        >
+                            {resetForm.formState.isSubmitting ? "Resetting..." : "Reset Password"}
+                        </Button>
+                    </form>
+                </Form>
               )}
             </CardContent>
           </Card>

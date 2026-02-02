@@ -15,7 +15,7 @@ export const handleApiError = (error, context = 'processing request', showToast 
   console.error(`Error ${context}:`, error);
   
   // Extract user-friendly message
-  const message = error.message || 'An unexpected error occurred';
+  const message = error?.message || 'An unexpected error occurred';
   
   // Show toast notification
   if (showToast) {

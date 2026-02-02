@@ -14,6 +14,12 @@ const MerchantSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  username: {
+    type: String,
+    unique: true,
+    sparse: true, // Allow null/undefined for existing records
+    trim: true
+  },
   email: {
     type: String,
     required: true,
@@ -26,6 +32,10 @@ const MerchantSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  avatar: {
+    type: String,
+    default: ''
   },
   password: {
     type: String,

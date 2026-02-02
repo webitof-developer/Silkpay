@@ -4,6 +4,7 @@ import { Bell, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from "sonner";
+import { DEFAULT_USER_PROFILE } from '@/lib/constants';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +37,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 
 export function Header() {
@@ -45,21 +46,23 @@ export function Header() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
 
-  const [userProfile, setUserProfile] = useState({
-    name: 'Business Merchant',
-    email: 'manager@silkpay.com',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
-  });
+  const [userProfile, setUserProfile] = useState(DEFAULT_USER_PROFILE);
 
   // Sync with API on mount and listen for updates
   useEffect(() => {
      const fetchProfile = async () => {
          try {
-             const settingsRes = await api.get('/settings');
-             if (settingsRes.data.avatar) {
-                 setUserProfile(prev => ({ ...prev, avatar: settingsRes.data.avatar }));
+             // Use the correct endpoint that exists on backend
+             const profileRes = await api.get('/merchant/profile');
+             if (profileRes.data) {
+                 setUserProfile(prev => ({ 
+                     ...prev, 
+                     name: profileRes.data.name || prev.name,
+                     username: profileRes.data.username || prev.username, // Add username
+                     email: profileRes.data.email || prev.email,
+                     avatar: profileRes.data.avatar || prev.avatar
+                 }));
              }
-             // Could also fetch name/email from merchant profile endpoint if needed
          } catch (e) {
              console.error("Failed to fetch profile header", e);
          }
@@ -69,9 +72,11 @@ export function Header() {
 
      const handleSettingsUpdate = (e) => {
          const newSettings = e.detail;
-         if (newSettings?.avatar) {
-             setUserProfile(prev => ({ ...prev, avatar: newSettings.avatar }));
-         }
+         setUserProfile(prev => ({
+             ...prev,
+             avatar: newSettings?.avatar || prev.avatar,
+             username: newSettings?.username || prev.username
+         }));
      };
 
      window.addEventListener('settings-updated', handleSettingsUpdate);
@@ -275,6 +280,9 @@ export function Header() {
                     </div>
                     <div className="text-center space-y-1">
                             <h3 className="font-semibold text-lg">{userProfile.name}</h3>
+                            {userProfile.username && (
+                                <p className="text-sm font-medium text-primary">@{userProfile.username}</p>
+                            )}
                             <p className="text-sm text-muted-foreground">{userProfile.email}</p>
                     </div>
 

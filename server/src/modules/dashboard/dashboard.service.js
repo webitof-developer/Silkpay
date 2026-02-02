@@ -29,11 +29,42 @@ class DashboardService {
       }
     ]);
     
+    // Get today's stats
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const todayStats = await Payout.aggregate([
+      { 
+        $match: { 
+          merchant_id: merchantId,
+          createdAt: { $gte: startOfDay },
+          status: 'SUCCESS' // Only count successful payouts for "Today's Payouts" amount
+        } 
+      },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          total_amount: { $sum: { $toDouble: '$amount' } }
+        }
+      }
+    ]);
+
+    const todayTotal = todayStats.length > 0 ? todayStats[0].total_amount : 0;
+    const todayCount = todayStats.length > 0 ? todayStats[0].count : 0;
+
+    // Convert merchant to object to ensure getters (Decimal128 -> Number) are applied
+    const merchantObj = merchant.toObject({ getters: true });
+
     const stats = {
-      balance: merchant.balance,
+      balance: merchantObj.balance,
       total_payouts: totalPayouts,
       total_beneficiaries: totalBeneficiaries,
       pending_payouts: pendingPayouts,
+      today_payouts: {
+          amount: todayTotal,
+          count: todayCount
+      },
       payout_breakdown: {}
     };
     
@@ -116,7 +147,13 @@ class DashboardService {
       .limit(limit)
       .lean();
     
-    return recentTransactions;
+    // Explicitly convert Decimal128 to Number for frontend
+    return recentTransactions.map(t => ({
+      ...t,
+      amount: t.amount?.$numberDecimal ? parseFloat(t.amount.$numberDecimal) : parseFloat(t.amount || 0),
+      balance_before: t.balance_before?.$numberDecimal ? parseFloat(t.balance_before.$numberDecimal) : parseFloat(t.balance_before || 0),
+      balance_after: t.balance_after?.$numberDecimal ? parseFloat(t.balance_after.$numberDecimal) : parseFloat(t.balance_after || 0),
+    }));
   }
 }
 

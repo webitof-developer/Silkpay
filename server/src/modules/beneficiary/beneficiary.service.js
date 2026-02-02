@@ -15,6 +15,9 @@ class BeneficiaryService {
       query.status = status;
     }
     
+    // Filter out ONE_TIME beneficiaries by default (unless specifically asked for, which we don't usually)
+    query.type = { $ne: 'ONE_TIME' };
+    
     // Add search filter (name, mobile, email)
     if (search) {
       query.$or = [

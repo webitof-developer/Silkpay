@@ -24,7 +24,11 @@ export const formatCurrency = (amount) => {
  * @returns {string} Formatted date string
  */
 export const formatDate = (date, format = 'short') => {
+  if (!date) return '-';
   const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  // Guard against invalid dates
+  if (isNaN(dateObj.getTime())) return '-';
   
   switch (format) {
     case 'short':

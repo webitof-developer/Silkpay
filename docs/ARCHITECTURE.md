@@ -40,7 +40,7 @@ The SilkPay Payout Platform is built as a **Hybrid Modular Monolith** with separ
 │                                     │                        │
 │  ┌─────── SHARED SERVICES ──────────┤                       │
 │  │ Logger │ Encryption │ Validation │                       │
-│  │ SilkPay API Client │ Auth Middleware                     │
+│  │ SilkPay API Client (Adapter)     │ Auth Middleware       │
 │  └──────────────────────────────────┘                       │
 └──────────────────────┬──────────────────────────────────────┘
                        │

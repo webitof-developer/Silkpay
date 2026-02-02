@@ -16,6 +16,12 @@ export const PRESET_AVATARS = [
 
 export const DEFAULT_AVATAR = PRESET_AVATARS[0];
 
+export const DEFAULT_USER_PROFILE = {
+    name: 'Business Merchant',
+    email: 'manager@silkpay.com',
+    avatar: DEFAULT_AVATAR
+};
+
 // ========================================
 // STATUS COLORS
 // ========================================

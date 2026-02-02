@@ -13,6 +13,8 @@ import { ReportDialog } from '@/components/dashboard/ReportDialog';
 
 export default function DashboardPage() {
   const [balance, setBalance] = useState({ available: 0, pending: 0, total: 0 });
+  const [todayStats, setTodayStats] = useState({ amount: 0, count: 0 });
+  const [pendingCount, setPendingCount] = useState(0);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showReportDialog, setShowReportDialog] = useState(false);
@@ -20,29 +22,30 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashboardRes, payoutsRes] = await Promise.all([
+        const [dashboardRes, activityRes] = await Promise.all([
           api.get('/dashboard/overview'),
-          api.get('/payouts')
+          api.get('/dashboard/recent-activity?limit=5')
         ]);
         
-        // Backend returns: { success: true, data: { balance, todayPayouts, recentTransactions } }
-        if (dashboardRes.success && dashboardRes.data?.balance) {
-          const newBalance = dashboardRes.data.balance;
-          setBalance(newBalance);
+        // Backend returns: { success: true, data: { balance, today_payouts, ... } }
+        if (dashboardRes.success && dashboardRes.data) {
+           console.log("Dashboard Data Received:", dashboardRes.data); // DEBUG LOG
+           setBalance(dashboardRes.data.balance);
+           // We can store other stats if needed, or just specific ones
+           setTodayStats(dashboardRes.data.today_payouts || { amount: 0, count: 0 });
+           setPendingCount(dashboardRes.data.pending_payouts || 0);
         }
-        // Sort payouts for recent activity
-        const payoutsData = payoutsRes.success ? payoutsRes.data.payouts : [];
-        const recent = (payoutsData || []).map(i => ({
-             ...i, 
-             type: 'PAYOUT', 
-             label: 'Payout', 
-             amount: i.amount, 
-             date: i.created_at 
-        }))
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .slice(0, 3);
 
-        setRecentActivity(recent);
+        if (activityRes.success) {
+            const activities = activityRes.data.map(item => ({
+                ...item,
+                label: item.type, // 'PAYOUT', 'REFUND' etc
+                beneficiary_name: item.description, // Description contains "Payout to Name" usually
+                amount: item.amount,
+                date: item.createdAt
+            }));
+            setRecentActivity(activities);
+        }
 
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
@@ -79,7 +82,7 @@ export default function DashboardPage() {
           title="Pending Amount"
           value={loading ? "..." : formatCurrency(balance.pending)}
           icon={Activity}
-          description="Transactions in process"
+          description={`${pendingCount} Transactions in process`}
           className="border-l-4 border-l-orange-500"
         />
         <StatCard
@@ -97,9 +100,9 @@ export default function DashboardPage() {
            <div className="grid gap-4 sm:grid-cols-1">
               <StatCard
                 title="Today's Payouts"
-                value="₹12,450.00"
+                value={loading ? "..." : formatCurrency(todayStats.amount)}
                 icon={ArrowUpRight}
-                description="Success Rate: 100%"
+                description={`Count: ${todayStats.count}`}
               />
            </div>
         </div>
@@ -120,17 +123,17 @@ export default function DashboardPage() {
                             <div key={idx} className="flex items-center justify-between border-b last:border-0 pb-2 last:pb-0">
                                 <div className="space-y-0.5">
                                     <p className="text-sm font-medium leading-none">
-                                        {item.beneficiary_name}
+                                        {item.description}
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <Badge variant="secondary" className="text-[10px] px-1 py-0 h-5">
-                                            {item.label}
+                                            {item.type}
                                         </Badge>
                                         <span className="text-xs text-muted-foreground">{formatDate(item.date, 'long')}</span>
                                     </div>
                                 </div>
-                                <div className="text-sm font-bold text-red-600">
-                                    -{formatCurrency(item.amount)}
+                                <div className={`text-sm font-bold ${item.type === 'REFUND' || item.type === 'ADJUSTMENT' ? 'text-green-600' : 'text-red-600'}`}>
+                                    {item.type === 'REFUND' || item.type === 'ADJUSTMENT' ? '+' : '-'}{formatCurrency(item.amount)}
                                 </div>
                             </div>
                         ))

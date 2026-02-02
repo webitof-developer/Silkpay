@@ -5,9 +5,8 @@ const Joi = require('joi');
  */
 exports.validateLogin = (req, res, next) => {
   const schema = Joi.object({
-    email: Joi.string().email({ tlds: { allow: false } }).required().messages({
-      'string.email': 'Please enter a valid email',
-      'any.required': 'Email is required'
+    email: Joi.string().required().messages({
+      'any.required': 'Email or Username is required'
     }),
     password: Joi.string().min(6).required().messages({
       'string.min': 'Password must be at least 6 characters',

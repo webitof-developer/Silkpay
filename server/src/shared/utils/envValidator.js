@@ -62,6 +62,10 @@ const requiredEnvVars = {
     required: false,
     default: 'http://localhost:3000'
   },
+  BACKEND_URL: {
+    required: false,
+    default: 'http://localhost:3001'
+  },
   CORS_ORIGINS: {
     required: false,
     default: 'http://localhost:3000'
@@ -197,7 +201,10 @@ function getConfig() {
       url: process.env.FRONTEND_URL,
       corsOrigins: process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [process.env.FRONTEND_URL]
     },
-    
+    backend: {
+      url: process.env.BACKEND_URL,
+      corsOrigins: process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [process.env.BACKEND_URL]
+    },
     email: {
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,

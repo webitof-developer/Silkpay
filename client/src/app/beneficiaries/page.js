@@ -14,10 +14,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import { formatDate } from '@/utils/formatters';
 import { exportToCSV } from '@/utils/exportData';
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { BeneficiaryForm } from '@/components/beneficiaries/BeneficiaryForm';
@@ -50,7 +48,18 @@ export default function BeneficiariesPage() {
     setLoading(true);
     try {
       const response = await api.get('/beneficiaries');
-      setBeneficiaries(response.data?.beneficiaries || []);
+      const rawBeneficiaries = response.data?.beneficiaries || [];
+      const mappedBeneficiaries = rawBeneficiaries.map(b => ({
+          ...b,
+          id: b._id, // Map _id to id
+          account_number: b.bank_details?.account_number || '',
+          ifsc_code: b.bank_details?.ifsc_code || '',
+          bank_name: b.bank_details?.bank_name || '',
+          upi_id: b.bank_details?.upi_id || '',
+          mobile: b.contact_info?.mobile || '',
+          email: b.contact_info?.email || ''
+      }));
+      setBeneficiaries(mappedBeneficiaries);
     } catch (error) {
        console.error("Failed to fetch beneficiaries", error);
     } finally {
@@ -59,18 +68,64 @@ export default function BeneficiariesPage() {
   };
 
   const handleCreate = async (values) => {
-     // Mock API call
-     const newBeneficiary = { ...values, id: `ben_${Date.now()}`, status: 'ACTIVE' };
-     setBeneficiaries([newBeneficiary, ...beneficiaries]);
-     setOpen(false);
+     try {
+         const payload = {
+             name: values.name,
+             contact_info: {
+                 mobile: values.mobile || undefined,
+                 email: values.email || undefined
+             },
+             bank_details: {
+                 account_number: values.account_number,
+                 ifsc_code: values.ifsc_code,
+                 bank_name: values.bank_name,
+                 upi_id: values.upi_id
+             }
+         };
+
+         const response = await api.post('/beneficiaries', payload);
+         if (response.success) {
+             toast.success("Beneficiary created successfully");
+             fetchBeneficiaries(); // Refresh list
+             setOpen(false);
+         } else {
+             // If manual check fails (shouldn't happen with standard API wrapper but safely throw)
+             throw new Error(response.message || "Failed to create beneficiary");
+         }
+     } catch (error) {
+         // Re-throw to let Form handle field highlighting and toast
+         throw error;
+     }
   };
 
   const handleUpdate = async (values) => {
-     // Mock API call
-     const updatedList = beneficiaries.map(b => b.id === editingBeneficiary.id ? { ...b, ...values } : b);
-     setBeneficiaries(updatedList);
-     setEditingBeneficiary(null);
-     setOpen(false);
+     try {
+         const payload = {
+             name: values.name,
+             contact_info: {
+                 mobile: values.mobile || undefined,
+                 email: values.email || undefined
+             },
+             bank_details: {
+                 account_number: values.account_number,
+                 ifsc_code: values.ifsc_code,
+                 bank_name: values.bank_name,
+                 upi_id: values.upi_id
+             }
+         };
+
+        const response = await api.put(`/beneficiaries/${editingBeneficiary.id}`, payload);
+         if (response.success) {
+             toast.success("Beneficiary updated successfully");
+             fetchBeneficiaries(); // Refresh list
+             setEditingBeneficiary(null);
+             setOpen(false);
+         } else {
+             throw new Error(response.message || "Failed to update beneficiary");
+         }
+     } catch (error) {
+         throw error;
+     }
   };
 
   const confirmDelete = (id) => {
@@ -79,9 +134,20 @@ export default function BeneficiariesPage() {
 
   const handleDelete = async () => {
      if (!deleteId) return;
-     // Mock API call
-     setBeneficiaries(beneficiaries.filter(b => b.id !== deleteId));
-     setDeleteId(null);
+     try {
+        const response = await api.delete(`/beneficiaries/${deleteId}`);
+        if (response.success) {
+            toast.success("Beneficiary deleted successfully");
+            fetchBeneficiaries();
+        } else {
+            toast.error(response.message || "Failed to delete beneficiary");
+        }
+     } catch (error) {
+        console.error("Delete error:", error);
+        toast.error("An error occurred while deleting");
+     } finally {
+        setDeleteId(null);
+     }
   };
   
   const openEdit = (beneficiary) => {

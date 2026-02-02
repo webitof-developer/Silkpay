@@ -36,6 +36,7 @@ class TransactionService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
+        .populate('payout_id')
         .lean(),
       Transaction.countDocuments(query)
     ]);

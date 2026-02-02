@@ -19,6 +19,7 @@ export const formatTimestamp = (timestamp) => {
   if (!timestamp) return 'N/A';
   // Handle both ISO strings and MS timestamps
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return 'Invalid Date';
   return date.toLocaleString('en-IN', {
     year: 'numeric',
     month: 'short',

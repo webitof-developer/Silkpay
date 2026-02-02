@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/services/api';
 import { toast } from 'sonner';
@@ -14,12 +14,20 @@ import { User, Bell, Shield, Wallet, Code, Save, ChevronDown, ChevronUp, KeyRoun
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
-import { PRESET_AVATARS } from '@/lib/constants';
+import { PRESET_AVATARS, DEFAULT_AVATAR } from '@/lib/constants';
 import { getMerchantProfile, updateMerchantProfile, changePassword } from '@/services/merchantService';
 
 // Local avatars removed - using shared constants
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div>Loading settings...</div>}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const searchParams = useSearchParams();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +69,7 @@ export default function SettingsPage() {
       setSettings(prev => {
           const newSettings = JSON.parse(JSON.stringify(prev));
           if (section === 'avatar') newSettings.avatar = data.avatar;
+          if (section === 'account') newSettings.username = data.username;
           if (section === 'notifications') newSettings.notifications = { ...prev.notifications, ...data };
           if (section === 'webhook') newSettings.webhook = { ...prev.webhook, ...data };
           if (section === 'security') newSettings.security = { ...prev.security, ...data };
@@ -73,12 +82,16 @@ export default function SettingsPage() {
       setSaving(true);
       try {
           await updateMerchantProfile(settings);
+          
+          // Notify other components (Header) about the update
+          window.dispatchEvent(new CustomEvent('settings-updated', { detail: settings }));
+
           await new Promise(resolve => setTimeout(resolve, 1000));
           setHasChanges(false);
           toast.success('Settings saved successfully');
       } catch (error) {
           console.error("Failed to save settings", error);
-          toast.error("Failed to save settings");
+          toast.error(error.message || "Failed to save settings");
       } finally {
           setSaving(false);
       }
@@ -111,7 +124,7 @@ export default function SettingsPage() {
       setPasswordSectionOpen(false);
 
     } catch (error) {
-      toast.error(error.response?.data?.error?.message || "Failed to change password");
+      toast.error(error.message || "Failed to change password");
     } finally {
       setChangingPassword(false);
     }
@@ -159,6 +172,14 @@ export default function SettingsPage() {
                         <div className="p-3 bg-muted rounded-md text-sm font-medium">{settings?.email}</div>
                     </div>
                     <div className="space-y-2">
+                         <Label>Username</Label>
+                         <Input 
+                             value={settings?.username || ''} 
+                             onChange={(e) => updateLocalSetting('account', { username: e.target.value })}
+                             placeholder="Set a username"
+                         />
+                    </div>
+                    <div className="space-y-2">
                         <Label>Merchant ID</Label>
                         <div className="p-3 bg-muted rounded-md text-sm font-mono">{settings?.merchant_no}</div>
                     </div>
@@ -183,7 +204,7 @@ export default function SettingsPage() {
                                 onClick={() => updateLocalSetting('avatar', { avatar })}
                                 className={cn(
                                     "h-16 w-16 rounded-full overflow-hidden border-2 transition-all hover:scale-110",
-                                    settings.avatar === avatar ? "border-primary ring-4 ring-primary/20" : "border-border"
+                                    (settings.avatar || DEFAULT_AVATAR) === avatar ? "border-primary ring-4 ring-primary/20" : "border-border"
                                 )}
                             >
                                 <img src={avatar} alt={`Avatar ${idx + 1}`} className="h-full w-full object-cover" />

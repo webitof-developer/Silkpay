@@ -14,13 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -38,24 +32,49 @@ const formSchema = z.object({
   bank_name: z.string().min(2, {
     message: "Bank name is required.",
   }),
+  upi_id: z.string().optional(),
 })
 
 export function BeneficiaryForm({ initialData, onSubmit, onCancel }) {
   // 1. Define your form.
+  const defaultValues = {
+    name: initialData?.name || "",
+    mobile: initialData?.mobile || "",
+    account_number: initialData?.account_number || "",
+    ifsc_code: initialData?.ifsc_code || "",
+    bank_name: initialData?.bank_name || "",
+    upi_id: initialData?.upi_id || "",
+  }
+
   const form = useForm({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
-      name: "",
-      mobile: "",
-      account_number: "",
-      ifsc_code: "",
-      bank_name: "",
-    },
+    defaultValues,
   })
 
   // 2. Define a submit handler.
-  function handleSubmit(values) {
-    onSubmit(values)
+  async function handleSubmit(values) {
+    try {
+      await onSubmit(values)
+    } catch (error) {
+      console.error("Form submission error", error);
+      
+      // Handle Field-Specific Validation Errors
+      if (error.fields) {
+        Object.keys(error.fields).forEach((field) => {
+          form.setError(field, {
+            type: "server",
+            message: error.fields[field],
+          });
+        });
+        toast.error(error.message || "An error occurred");
+        // We don't show a toast here if fields are highlighted, 
+        // OR we can show a generic "Check form" toast.
+      } else {
+        // Fallback for non-field specific errors (handled by parent usually, but safe to retain)
+        // If the parent throws, it means it didn't handle the UI completely
+        toast.error(error.message || "An error occurred");
+      }
+    }
   }
 
   return (
@@ -131,9 +150,27 @@ export function BeneficiaryForm({ initialData, onSubmit, onCancel }) {
             />
         </div>
         
+        <div className="grid grid-cols-2 gap-4">
+             <FormField
+              control={form.control}
+              name="upi_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>UPI ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="user@upi" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        </div>
+        
         <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-            <Button type="submit">Save Beneficiary</Button>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={form.formState.isSubmitting}>Cancel</Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? "Saving..." : "Save Beneficiary"}
+            </Button>
         </div>
       </form>
     </Form>

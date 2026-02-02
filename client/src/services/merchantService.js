@@ -19,7 +19,17 @@ export const getMerchantProfile = async () => {
  * @returns {Promise<Object>}
  */
 export const updateMerchantProfile = async (updates) => {
-  const response = await api.put('/merchant/profile', updates);
+  // Filter out read-only fields that cause validation errors (e.g. id, email, balance)
+  const allowedFields = ['name', 'mobile', 'avatar', 'username'];
+  const filteredUpdates = {};
+  
+  Object.keys(updates).forEach(key => {
+    if (allowedFields.includes(key)) {
+      filteredUpdates[key] = updates[key];
+    }
+  });
+
+  const response = await api.put('/merchant/profile', filteredUpdates);
   return response.data;
 };
 

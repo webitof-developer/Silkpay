@@ -79,8 +79,13 @@ const request = async (endpoint, { method = 'GET', body, ...customConfig } = {})
         
         // Handle 401 Unauthorized
         if (response.status === 401) {
-            // console.warn("Unauthorized access - redirecting to login...");
-            // if (typeof window !== 'undefined') window.location.href = '/login';
+            console.warn("Session expired - redirecting to login...");
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('authToken'); // Clear invalid token
+                document.cookie = "silkpay_session=; path=/; max-age=0"; // Clear cookie if any
+                window.location.href = '/login';
+            }
+            throw new Error("Session expired. Please login again.");
         }
 
         if (!response.ok) {
@@ -88,7 +93,16 @@ const request = async (endpoint, { method = 'GET', body, ...customConfig } = {})
             try {
                 const errorData = await response.json();
                 // Prioritize 'message' or 'error' fields from backend
-                errorMessage = errorData.message || errorData.error || errorMessage;
+                errorMessage = errorData.message || 
+                             (typeof errorData.error === 'string' ? errorData.error : errorData.error?.message) || 
+                             errorMessage;
+                
+                // attach validation fields if available
+                if (errorData.fields || errorData.errors) {
+                    const validationError = new Error(errorMessage);
+                    validationError.fields = errorData.fields || errorData.errors;
+                    throw validationError;
+                }
             } catch (jsonError) {
                 // Fallback for non-JSON responses (e.g. 502/504 HTML pages)
                 errorMessage = response.statusText || "Server communication error";

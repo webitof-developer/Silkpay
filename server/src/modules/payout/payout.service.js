@@ -3,24 +3,58 @@ const Beneficiary = require('../beneficiary/beneficiary.model');
 const Merchant = require('../merchant/merchant.model');
 const silkpayService = require('../../shared/services/silkpayService');
 const logger = require('../../shared/utils/logger');
+const transactionService = require('../transaction/transaction.service');
 
 class PayoutService {
   /**
    * Create new payout
    */
   async createPayout(merchantId, merchantNo, data) {
-    // Get beneficiary
-    const beneficiary = await Beneficiary.findOne({
-      _id: data.beneficiary_id,
-      merchant_id: merchantId,
-      status: 'ACTIVE'
-    });
+    // Get or Create beneficiary
+    let beneficiary;
 
-    if (!beneficiary) {
-      const error = new Error('Beneficiary not found or inactive');
-      error.statusCode = 404;
-      error.code = 'BENEFICIARY_NOT_FOUND';
-      throw error;
+    if (data.source === 'ONE_TIME' && !data.beneficiary_id) {
+        // Create new beneficiary for one-time payout
+        const beneficiaryService = require('../beneficiary/beneficiary.service');
+        const newBeneficiaryData = {
+            name: data.beneficiary_name,
+            bank_details: {
+                account_number: data.account_number,
+                ifsc_code: data.ifsc_code,
+                bank_name: 'Unknown', // Could be derived from IFSC if we had a lookup
+                upi_id: data.upi
+            },
+            status: 'ACTIVE', // Must be active to use
+            type: 'ONE_TIME'
+        };
+        
+        // Note: Duplicate check in beneficiary service might fail if encryption isn't deterministic
+        // But for now we proceed. Ideally we catch duplicate error and try to look it up, 
+        // but lookup is hard with random encryption.
+        try {
+            const created = await beneficiaryService.createBeneficiary(merchantId, merchantNo, newBeneficiaryData);
+            // created is an object (lean), we need a Mongoose document for methods like getDecryptedAccountNumber
+            beneficiary = await Beneficiary.findById(created._id); 
+        } catch (error) {
+             // Fallback: If duplicate error, we can't easily find the ID. 
+             // We'll let the error propagate for now or user must use "Saved Beneficiary"
+             throw error;
+        }
+
+    } else {
+        // Existing Beneficiary
+        beneficiary = await Beneficiary.findOne({
+            _id: data.beneficiary_id,
+            merchant_id: merchantId,
+            status: 'ACTIVE'
+        });
+
+        if (!beneficiary) {
+            const error = new Error('Beneficiary not found or inactive');
+            error.statusCode = 404;
+            error.code = 'BENEFICIARY_NOT_FOUND';
+            throw error;
+        }
     }
 
     // Check merchant balance
@@ -48,6 +82,7 @@ class PayoutService {
       ifsc_code: beneficiary.bank_details.ifsc_code,
       mobile: beneficiary.contact_info?.mobile || '',
       email: beneficiary.contact_info?.email || '',
+      upi: beneficiary.bank_details.upi_id || '', // Pass stored UPI ID
       purpose: data.purpose || 'Payout'
     };
 
@@ -60,7 +95,7 @@ class PayoutService {
         merchant_id: merchantId,
         merchant_no: merchantNo,
         beneficiary_id: beneficiary._id,
-        silkpay_order_no: silkpayResponse.data?.order_no || outTradeNo,
+        silkpay_order_no: silkpayResponse.external_id || outTradeNo,
         out_trade_no: outTradeNo,
         amount: data.amount,
         currency: data.currency || 'INR',
@@ -71,17 +106,32 @@ class PayoutService {
           mobile: beneficiary.contact_info?.mobile,
           email: beneficiary.contact_info?.email
         },
-        // Official Spec: status "200" means success
-        status: silkpayResponse.status === '200' ? 'PROCESSING' : 'PENDING',
-        silkpay_response: silkpayResponse,
+        // Adapter returns normalized status 'PROCESSING' or 'FAILED'
+        status: silkpayResponse.status,
+        silkpay_response: silkpayResponse.raw,
         purpose: data.purpose,
         notes: data.notes
       });
 
       // Deduct from available balance, add to pending
+      const balanceBefore = merchant.balance.available;
       merchant.balance.available -= parseFloat(data.amount);
       merchant.balance.pending += parseFloat(data.amount);
       await merchant.save();
+
+      // Create Transaction Record (PAYOUT)
+      await transactionService.createTransaction({
+        merchant_id: merchantId,
+        merchant_no: merchantNo,
+        type: 'PAYOUT',
+        payout_id: payout._id,
+        amount: data.amount,
+        currency: data.currency || 'INR',
+        balance_before: balanceBefore,
+        balance_after: merchant.balance.available,
+        description: `Payout to ${beneficiary.name}`,
+        reference_no: outTradeNo
+      });
 
       logger.info(`Payout created: ${payout.out_trade_no}`, {
         merchant_no: merchantNo,
@@ -229,9 +279,25 @@ class PayoutService {
 
       // Refund to available balance
       const merchant = await Merchant.findById(payout.merchant_id);
+      const balanceBefore = merchant.balance.available; // This is before refund
+      
       merchant.balance.pending -= parseFloat(payout.amount);
       merchant.balance.available += parseFloat(payout.amount);
       await merchant.save();
+
+      // Create Transaction Record (REFUND)
+      await transactionService.createTransaction({
+        merchant_id: payout.merchant_id,
+        merchant_no: payout.merchant_no,
+        type: 'REFUND',
+        payout_id: payout._id,
+        amount: payout.amount,
+        currency: payout.currency || 'INR',
+        balance_before: balanceBefore,
+        balance_after: merchant.balance.available,
+        description: `Refund for failed payout: ${payout.out_trade_no}`,
+        reference_no: `REF-${payout.out_trade_no}`
+      });
     }
 
     await payout.save();
@@ -242,6 +308,30 @@ class PayoutService {
     });
 
     return payout;
+  }
+  /**
+   * Handle webhook update by mOrderId
+   */
+  async handleWebhookUpdate(mOrderId, newStatus, responseData) {
+    const payout = await Payout.findOne({ out_trade_no: mOrderId });
+    
+    if (!payout) {
+      logger.warn(`Webhook: Payout not found for mOrderId ${mOrderId}`);
+      // If not found, we throw error so webhook doesn't erroneously return OK? 
+      // Or maybe it's a test data mismatch.
+      throw new Error('Payout not found');
+    }
+
+    // Idempotency Check: If already in final state, ignore
+    if (payout.status === 'SUCCESS' || payout.status === 'FAILED' || payout.status === 'REVERSED') {
+        logger.info(`Webhook: Payout ${mOrderId} already in terminal state ${payout.status}. Ignoring update to ${newStatus}.`);
+        return payout;
+    }
+
+    // If status matches current, do nothing
+    if (payout.status === newStatus) return payout;
+
+    return await this.updatePayoutStatus(payout, newStatus, responseData);
   }
 }
 

@@ -39,7 +39,8 @@
 - ✅ `workers/email.worker.js` - Email queue
 
 ### Scripts
-- ✅ `scripts/seed.js` - Test data (dev only - DO NOT deploy to production)
+- ✅ `server/scripts/seed.js` - Test data (dev only - DO NOT deploy to production)
+- ✅ `server/scripts/reset-data.js` - Data cleanup tool (dev only)
 
 ---
 

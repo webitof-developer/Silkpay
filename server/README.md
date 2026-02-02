@@ -59,6 +59,19 @@ Server runs on: `http://localhost:3001`
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/me` - Get current merchant (protected)
 
+### Payouts
+- `GET /api/payouts` - List payouts
+- `POST /api/payouts` - Create payout
+- `GET /api/payouts/:id` - Get payout details
+
+### Transactions
+- `GET /api/transactions` - List transaction history (ledger)
+
+### Beneficiaries
+- `GET /api/beneficiaries` - List beneficiaries
+- `POST /api/beneficiaries` - Create beneficiary
+- `PUT /api/beneficiaries/:id` - Update beneficiary
+
 ### Health Check
 - `GET /health` - Server health status
 
@@ -100,21 +113,33 @@ server/
 └── package.json
 ```
 
-## Development Status
-
-✅ Week 1 (Completed):
-- [x] Project structure
-- [x] MongoDB connection
-- [x] Agenda job queue setup
-- [x] Merchant model
+✅ **Completed Modules:**
+- [x] Project structure & MongoDB
 - [x] Auth module (login, JWT)
-- [x] Error handling
-- [x] Logging
-
-🚧 Week 2 (Next):
-- [ ] Beneficiary module
-- [ ] Merchant module
+- [x] Merchant module (Profile, API Keys)
+- [x] Beneficiary module (CRUD, UPI support)
+- [x] Payout module (Create, List, Details)
+- [x] Transaction module (Ledger, Exports)
+- [x] Dashboard module (Metrics, Analytics)
+- [x] Webhook module (SilkPay callbacks)
+- [x] Background Workers (Payout Sync, Balance Sync)
 
 ## License
 
 ISC
+
+## SilkPay Integration Reference
+
+### Status Codes
+- `2`: Payment Successful
+- `3`: Payment Failed
+- `PROCESSING`: Payment in progress
+
+### Required Fields (Payout Request)
+- `mId`: Merchant ID
+- `mOrderId`: Merchant Order ID (Unique)
+- `payOrderId`: SilkPay Order ID
+- `amount`: Transaction Amount
+- `status`: Transaction Status (2=Success, 3=Failed)
+- `sign`: MD5 Signature
+

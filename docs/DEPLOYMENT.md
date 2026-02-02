@@ -202,6 +202,7 @@ SILKPAY_SECRET_KEY=<production-secret-key>
 
 # Frontend
 FRONTEND_URL=https://yourdomain.com
+BACKEND_URL=https://api.yourdomain.com
 CORS_ORIGINS=https://yourdomain.com
 
 # Email

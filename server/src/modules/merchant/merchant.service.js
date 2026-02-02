@@ -21,8 +21,10 @@ class MerchantService {
       id: merchant._id,
       merchant_no: merchant.merchant_no,
       name: merchant.name,
+      username: merchant.username, // Include username
       email: merchant.email,
       mobile: merchant.mobile,
+      avatar: merchant.avatar, // Include avatar
       status: merchant.status,
       balance: merchant.balance,
       whitelist_ips: merchant.whitelist_ips,
@@ -45,7 +47,9 @@ class MerchantService {
     
     // Update allowed fields
     if (updates.name) merchant.name = updates.name;
+    if (updates.username) merchant.username = updates.username; // Save as provided (case sensitive)
     if (updates.mobile) merchant.mobile = updates.mobile;
+    if (updates.avatar !== undefined) merchant.avatar = updates.avatar; // Allow avatar update
     
     await merchant.save();
     

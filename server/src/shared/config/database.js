@@ -3,11 +3,7 @@ const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      // Mongoose 6+ no longer needs these options:
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI);
 
     logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
     logger.info(`📊 Database: ${conn.connection.name}`);

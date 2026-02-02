@@ -5,7 +5,7 @@ import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowUpDown, CalendarIcon, Download } from 'lucide-react';
+import { Plus, ArrowUpDown, CalendarIcon, Download ,FileText, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,13 +14,23 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { exportToCSV } from '@/utils/exportData';
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
+import { ReceiptDialog } from '@/components/payouts/ReceiptDialog';
+
 export default function PayoutsPage() {
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter] = useState('ALL');
   const [accountSearch, setAccountSearch] = useState('');
@@ -39,10 +49,47 @@ export default function PayoutsPage() {
       const response = await api.get('/payouts');
       // Backend returns: { success: true, data: { payouts, total } }
       if (response.success && response.data) {
-        setPayouts(response.data.payouts || []);
+          const rawPayouts = response.data.payouts || [];
+          const formattedPayouts = rawPayouts.map(p => ({
+              ...p,
+              id: p._id,
+              mOrderId: p.out_trade_no,
+              beneficiary_name: p.beneficiary_details?.name || 'Unknown',
+              account_number: p.beneficiary_details?.account_number || '',
+              ifsc_code: p.beneficiary_details?.ifsc_code || '',
+              bank_name: 'Unknown',
+              // Source: Check beneficiary type if populated, or fallback to SAVED
+              // If creating creating ONE_TIME payout, backend should ideally tag it.
+              // We rely on beneficiary_details mainly or associated beneficiary.
+              // Since we don't have the beneficiary object populated, we check if name matches or rely on context
+              // Ideally Backend should return 'source' or populated beneficiary.
+              source: (p.beneficiary_id?.type === 'ONE_TIME') ? 'ONE_TIME' : 'SAVED',
+
+              // UTR: Only show if real. Silkpay often sends check_status response with 'data.utr'
+              utr: p.silkpay_response?.data?.utr || p.silkpay_response?.utr || '-',
+              
+              status: p.status, // Uses model status directly
+              amount: p.amount?.$numberDecimal ? parseFloat(p.amount.$numberDecimal) : (parseFloat(p.amount) || 0),
+              created_at: p.createdAt
+          }));
+          setPayouts(formattedPayouts);
       } else if (Array.isArray(response.data)) {
-        // Fallback if response.data is directly an array
-        setPayouts(response.data);
+         // Fallback for array response
+         const formattedPayouts = response.data.map(p => ({
+              ...p,
+              id: p._id,
+              mOrderId: p.out_trade_no,
+              beneficiary_name: p.beneficiary_details?.name || 'Unknown',
+              account_number: p.beneficiary_details?.account_number || '',
+              ifsc_code: p.beneficiary_details?.ifsc_code || '',
+              // Fallback source logic same as above
+              source: (p.beneficiary_id?.type === 'ONE_TIME') ? 'ONE_TIME' : 'SAVED',
+              utr: p.silkpay_response?.data?.utr || p.silkpay_response?.utr || '-',
+              status: p.status,
+              amount: p.amount?.$numberDecimal ? parseFloat(p.amount.$numberDecimal) : (parseFloat(p.amount) || 0),
+              created_at: p.createdAt
+          }));
+        setPayouts(formattedPayouts);
       }
     } catch (error) {
        console.error("Failed to fetch payouts", error);
@@ -54,8 +101,8 @@ export default function PayoutsPage() {
   const filteredPayouts = payouts.filter(item => {
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
     const matchesSource = sourceFilter === 'ALL' || item.source === sourceFilter;
-    const matchesAccount = item.account_number.toLowerCase().includes(accountSearch.toLowerCase());
-    const matchesBeneficiary = item.beneficiary_name.toLowerCase().includes(beneficiarySearch.toLowerCase());
+    const matchesAccount = item.account_number?.toLowerCase().includes(accountSearch.toLowerCase());
+    const matchesBeneficiary = item.beneficiary_name?.toLowerCase().includes(beneficiarySearch.toLowerCase());
     
     let matchesAmount = true;
     const amount = parseFloat(item.amount);
@@ -112,6 +159,22 @@ export default function PayoutsPage() {
       toast.success('Payouts exported successfully');
   };
 
+  const handleSyncStatus = async (id) => {
+    const toastId = toast.loading("Checking status...");
+    try {
+        const response = await api.get(`/payouts/${id}/status`);
+        if (response.success) {
+            toast.success("Status synced successfully", { id: toastId });
+            fetchPayouts(); // Refresh list to see new status/UTR
+        } else {
+            toast.error(response.message || "Failed to sync status", { id: toastId });
+        }
+    } catch (error) {
+        console.error("Sync error:", error);
+        toast.error(error.message || "Sync failed", { id: toastId });
+    }
+  };
+
   // Helpers removed - using shared utils
 
   const columns = [
@@ -150,10 +213,14 @@ export default function PayoutsPage() {
         ),
         cell: ({ row }) => <div className="font-medium">{formatCurrency(row.getValue("amount"))}</div>,
       },
+
       {
         accessorKey: "status",
         header: "Status",
-        cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
+        cell: ({ row }) => {
+            const status = row.getValue("status"); 
+            return <StatusBadge status={status} />;
+        },
       },
       {
         accessorKey: "created_at",
@@ -164,6 +231,82 @@ export default function PayoutsPage() {
         ),
         cell: ({ row }) => <div className="text-sm text-muted-foreground">{formatDate(row.getValue("created_at"), 'long')}</div>,
       },
+      {
+        id: "actions",
+        header: "Operate",
+        cell: ({ row }) => {
+            const isSuccess = row.getValue("status") === 'SUCCESS';
+            
+            if (isSuccess) {
+                return (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                            setSelectedTransaction(row.original);
+                            setReceiptOpen(true);
+                        }}
+                        className="text-primary hover:text-primary/80 hover:bg-primary/10 h-8 px-2"
+                    >
+                        <FileText className="w-3.5 h-3.5 mr-1" /> Receipt
+                    </Button>
+                )
+            }
+
+            // For Failed/Processing, show Details
+            const isFailed = row.getValue("status") === 'FAILED' || row.getValue("status") === 'REVERSED';
+            
+            if (isFailed) {
+                 return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 h-8 px-2"
+                                >
+                                    <span className="text-xs">Failed</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Message: {row.original.failure_reason || 'Unknown error'}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )
+            }
+
+
+            
+            const isProcessing = row.getValue("status") === 'PROCESSING' || row.getValue("status") === 'PENDING';
+            if (isProcessing) {
+                return (
+                     <div className="flex gap-2">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => handleSyncStatus(row.original.id)}
+                                        className="text-primary hover:text-pink-500/80 hover:bg-pink-500/30 h-8 px-2"
+                                    >
+                                        <RotateCw className="w-3.5 h-3.5 mr-1" /> Sync
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Check status with Bank</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                     </div>
+                )
+            }
+
+            return <div className="w-8 h-8"></div>; // Placeholder
+        }
+      }
   ];
 
   return (
@@ -212,10 +355,11 @@ export default function PayoutsPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">All Status</SelectItem>
-                            <SelectItem value="INITIAL">Initial</SelectItem>
-                            <SelectItem value="SUCCESS">Success</SelectItem>
+                            <SelectItem value="PENDING">Pending</SelectItem>
                             <SelectItem value="PROCESSING">Processing</SelectItem>
+                            <SelectItem value="SUCCESS">Success</SelectItem>
                             <SelectItem value="FAILED">Failed</SelectItem>
+                            <SelectItem value="REVERSED">Reversed</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -299,6 +443,12 @@ export default function PayoutsPage() {
       </div>
       
       {loading ? <div>Loading...</div> : <DataTable columns={columns} data={filteredPayouts} />}
+      
+      <ReceiptDialog 
+        open={receiptOpen} 
+        onOpenChange={setReceiptOpen} 
+        transaction={selectedTransaction} 
+      />
     </div>
   );
 }

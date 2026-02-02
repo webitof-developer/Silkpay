@@ -25,16 +25,29 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { api } from "@/services/api"
+import { toast } from "sonner"
 
 // Schema for One-time payout (all fields required)
 const oneTimeSchema = z.object({
-  beneficiary_name: z.string().min(2),
-  account_number: z.string().min(8),
-  ifsc_code: z.string().min(4),
+  beneficiary_name: z.string().min(2, "Name must be at least 2 characters"),
+  account_number: z.string().min(8, "Account number must be at least 8 digits"),
+  ifsc_code: z.string().min(4, "IFSC code is required"),
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
       message: "Amount must be greater than 0"
   }),
   description: z.string().optional(),
+  upi: z.string().optional(),
 })
 
 // Schema for Existing Beneficiary (select ID required)
@@ -43,13 +56,11 @@ const existingSchema = z.object({
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
       message: "Amount must be greater than 0"
   }),
-  description: z.string().optional(),
+  notes: z.string().optional(),
 })
 
 export function PayoutForm() {
-  const router = useRouter()
   const [mode, setMode] = useState("onetime")
-  const [loading, setLoading] = useState(false)
   const [beneficiaries, setBeneficiaries] = useState([])
 
   // Fetch real beneficiaries when component mounts
@@ -78,37 +89,22 @@ export function PayoutForm() {
       </TabsList>
       
       <TabsContent value="onetime">
-         <OneTimePayoutForm onSubmit={async (data) => {
-             setLoading(true)
-             console.log("Processing One-time", data)
-             // Simulate API
-             setTimeout(() => {
-                 setLoading(false)
-                 router.push('/transactions')
-             }, 1000)
-         }} loading={loading} />
+         <OneTimePayoutForm />
       </TabsContent>
       
       <TabsContent value="existing">
-          <ExistingPayoutForm onSubmit={async (data) => {
-             setLoading(true)
-              console.log("Processing Existing", data)
-             // Simulate API
-             setTimeout(() => {
-                 setLoading(false)
-                 router.push('/transactions')
-             }, 1000)
-         }} loading={loading} beneficiaries={beneficiaries} />
+          <ExistingPayoutForm beneficiaries={beneficiaries} />
       </TabsContent>
     </Tabs>
   )
 }
 
-import { api } from "@/services/api"
-import { toast } from "sonner"
-
-function OneTimePayoutForm({ onSubmit, loading }) {
+function OneTimePayoutForm() {
     const router = useRouter()
+    const [loading, setLoading] = useState(false)
+    const [confirmOpen, setConfirmOpen] = useState(false)
+    const [pendingData, setPendingData] = useState(null)
+
     const form = useForm({
         resolver: zodResolver(oneTimeSchema),
         defaultValues: {
@@ -122,6 +118,7 @@ function OneTimePayoutForm({ onSubmit, loading }) {
     })
 
     const handleFormSubmit = async (data) => {
+        setLoading(true)
         try {
             const payload = {
                 beneficiary_name: data.beneficiary_name,
@@ -130,27 +127,50 @@ function OneTimePayoutForm({ onSubmit, loading }) {
                 upi: data.upi || '',
                 amount: parseFloat(data.amount).toFixed(2),
                 source: 'ONE_TIME',
-                description: data.description || ''
+                notes: data.description || '' 
             };
-
-            await onSubmit(payload); 
             
             const response = await api.post('/payouts', payload);
-            
             if (response.success || response.data) {
                 toast.success("Payout Initiated Successfully");
-                router.push('/payouts');
+                router.push('/transactions'); // Redirect to transactions to see status
             } else {
-                console.error("Payout failed", response);
                 toast.error("Payout failed. Please try again.");
             }
         } catch (error) {
             console.error("Payout error", error);
-            toast.error("An error occurred while processing the payout.");
+            
+            // Handle Field-Specific Validation Errors
+            if (error.fields) {
+                Object.keys(error.fields).forEach((field) => {
+                    form.setError(field, {
+                        type: "server",
+                        message: error.fields[field]
+                    });
+                });
+                toast.error("Please check the form for errors.");
+            } else {
+                toast.error(error.message || "An error occurred while processing the payout.");
+            }
+        } finally {
+            setLoading(false)
         }
     }
 
+    const handleInitialSubmit = (data) => {
+        setPendingData(data)
+        setConfirmOpen(true)
+    }
+
+    const handleConfirm = () => {
+        if (pendingData) {
+            handleFormSubmit(pendingData)
+        }
+        setConfirmOpen(false)
+    }
+
     return (
+        <>
         <Card>
             <CardHeader>
                 <CardTitle>One-Time Transfer</CardTitle>
@@ -158,7 +178,7 @@ function OneTimePayoutForm({ onSubmit, loading }) {
             </CardHeader>
             <CardContent>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(handleInitialSubmit)} className="space-y-4">
                         <FormField
                             control={form.control}
                             name="beneficiary_name"
@@ -170,7 +190,7 @@ function OneTimePayoutForm({ onSubmit, loading }) {
                                 </FormItem>
                             )}
                         />
-                         <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
                                 name="account_number"
@@ -226,69 +246,223 @@ function OneTimePayoutForm({ onSubmit, loading }) {
                 </Form>
             </CardContent>
         </Card>
+
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm One-Time Payout</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Please verify the details carefully. This cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                
+                {pendingData && (
+                    <div className="py-4 space-y-3">
+                        <div className="flex justify-between items-center p-2 px-3 bg-muted rounded-sm">
+                            <span className="text-sm font-medium">Amount</span>
+                            <span className="text-lg font-bold text-primary">₹ {parseFloat(pendingData.amount).toFixed(2)}</span>
+                        </div>
+                        <div className="space-y-1 text-sm border-l-2 border-primary/20 pl-3">
+                            <p><span className="text-muted-foreground">To:</span> <span className="font-medium">{pendingData.beneficiary_name}</span></p>
+                            <p><span className="text-muted-foreground">Account:</span> <span className="font-mono">{pendingData.account_number}</span></p>
+                            <p><span className="text-muted-foreground">IFSC:</span> <span className="font-mono">{pendingData.ifsc_code}</span></p>
+                            {pendingData.upi && <p><span className="text-muted-foreground">UPI:</span> {pendingData.upi}</p>}
+                        </div>
+                    </div>
+                )}
+
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirm} disabled={loading}>
+                        Confirm Payment
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        </>
     )
 }
 
-function ExistingPayoutForm({ onSubmit, loading, beneficiaries }) {
+function ExistingPayoutForm({ beneficiaries }) {
+    const router = useRouter()
+    const [loading, setLoading] = useState(false)
+    const [confirmOpen, setConfirmOpen] = useState(false)
+    const [pendingData, setPendingData] = useState(null)
+
     const form = useForm({
         resolver: zodResolver(existingSchema),
         defaultValues: {
             beneficiary_id: "",
             amount: "",
-            description: "",
+            notes: "",
         }
     })
 
+    const handleFormSubmit = async (data) => {
+        setLoading(true)
+        try {
+             const payload = {
+                 beneficiary_id: data.beneficiary_id,
+                 amount: parseFloat(data.amount).toFixed(2),
+                 notes: data.notes || '',
+                 source: 'SAVED'
+             }
+
+             const response = await api.post('/payouts', payload);
+
+             if (response.success || response.data) {
+                 toast.success("Payout Initiated Successfully");
+                 router.push('/transactions');
+             } else {
+                 toast.error("Payout failed. Please try again.");
+             }
+         } catch (error) {
+             console.error("Payout error", error);
+             
+             // Handle Field Error
+             if (error.fields) {
+                 Object.keys(error.fields).forEach((field) => {
+                     form.setError(field, {
+                         type: "server",
+                         message: error.fields[field]
+                     });
+                 });
+                 toast.error("Please check the form for errors.");
+             } else {
+                 toast.error(error.message || "An error occurred while processing the payout.");
+             }
+         } finally {
+             setLoading(false)
+         }
+    }
+
+    const handleInitialSubmit = (data) => {
+        setPendingData(data)
+        setConfirmOpen(true)
+    }
+
+    const handleConfirm = () => {
+        if (pendingData) {
+            handleFormSubmit(pendingData)
+        }
+        setConfirmOpen(false)
+    }
+
+    // Helper to get selected beneficiary details for preview/confirm
+    const selectedId = form.watch("beneficiary_id")
+    const selectedBen = beneficiaries.find(b => b._id === selectedId)
+
     return (
-        <Card>
-             <CardHeader>
-                <CardTitle>Select Beneficiary</CardTitle>
-                <CardDescription>Choose a saved beneficiary for quick transfer.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                         <FormField
-                            control={form.control}
-                            name="beneficiary_id"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Beneficiary</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a beneficiary" />
-                                        </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent className="max-h-[200px]">
-                                            {beneficiaries.map(ben => (
-                                                <SelectItem key={ben.id} value={ben.id}>
-                                                    {ben.name} - {ben.bank_name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Select Beneficiary</CardTitle>
+                    <CardDescription>Choose a saved beneficiary for quick transfer.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(handleInitialSubmit)} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="beneficiary_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Beneficiary</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a beneficiary" />
+                                            </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="max-h-[200px]">
+                                                {beneficiaries.map(ben => (
+                                                    <SelectItem key={ben._id} value={ben._id}>
+                                                        {ben.name} - {ben.bank_name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Inline Preview */}
+                            {selectedBen && (
+                                <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-1.5 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Bank Name:</span>
+                                        <span className="font-medium">{selectedBen.bank_name || selectedBen.bank_details?.bank_name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Account No:</span>
+                                        <span className="font-mono font-medium">
+                                            {selectedBen.account_number || selectedBen.bank_details?.account_number || '****'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">IFSC Code:</span>
+                                        <span className="font-medium">{selectedBen.ifsc_code || selectedBen.bank_details?.ifsc_code}</span>
+                                    </div>
+                                    {selectedBen.bank_details?.upi_id && (
+                                        <div className="flex justify-between text-pink-400/80">
+                                            <span className="text-muted-foreground">UPI ID:</span>
+                                            <span className="font-medium">{selectedBen.bank_details.upi_id}</span>
+                                        </div>
+                                    )}
+                                </div>
                             )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="amount"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Amount (INR)</FormLabel>
-                                    <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <Button type="submit" className="w-full" disabled={loading}>
-                             {loading ? "Processing..." : "Proceed to Pay"}
-                        </Button>
-                    </form>
-                </Form>
-            </CardContent>
-        </Card>
+
+                            <FormField
+                                control={form.control}
+                                name="amount"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Amount (INR)</FormLabel>
+                                        <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <Button type="submit" className="w-full" disabled={loading}>
+                                {loading ? "Processing..." : "Proceed to Pay"}
+                            </Button>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Payout</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to send this payout?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    
+                    {selectedBen && pendingData && (
+                        <div className="py-4 space-y-3">
+                            <div className="flex justify-between items-center p-2 px-3 bg-muted rounded-sm">
+                                <span className="text-sm font-medium">Amount</span>
+                                <span className="text-lg font-bold text-primary">₹ {parseFloat(pendingData.amount).toFixed(2)}</span>
+                            </div>
+                            <div className="space-y-1 text-sm border-l-2 border-primary/20 pl-3">
+                                <p><span className="text-muted-foreground">To:</span> <span className="font-medium">{selectedBen.name}</span></p>
+                                <p><span className="text-muted-foreground">Bank:</span> {selectedBen.bank_name || selectedBen.bank_details?.bank_name}</p>
+                                <p><span className="text-muted-foreground">Account:</span> <span className="font-mono">{selectedBen.account_number || selectedBen.bank_details?.account_number}</span></p>
+                            </div>
+                        </div>
+                    )}
+
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirm} disabled={loading}>
+                            Confirm Payment
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     )
 }

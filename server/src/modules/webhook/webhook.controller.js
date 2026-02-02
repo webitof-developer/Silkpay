@@ -1,77 +1,49 @@
-const Payout = require('../payout/payout.model');
-const payoutService = require('../payout/payout.service');
 const silkpayService = require('../../shared/services/silkpayService');
+const payoutService = require('../payout/payout.service');
 const logger = require('../../shared/utils/logger');
 
 /**
- * Handle SilkPay webhook callback
+ * Handle SilkPay asynchronous notifications
  * POST /api/webhook/silkpay
  */
-exports.handleSilkPayWebhook = async (req, res, next) => {
+exports.handleSilkPayCallback = async (req, res, next) => {
   try {
-    const webhookData = req.body;
+    const params = req.body;
     
-    logger.info('Received SilkPay webhook', { 
-      out_trade_no: webhookData.out_trade_no,
-      status: webhookData.status
-    });
+    console.log('----------------------------------------------------');
+    console.log('🔔 [Webhook] Received Callback:', JSON.stringify(params, null, 2));
 
-    // Extract signature
-    const receivedSign = webhookData.sign;
-    delete webhookData.sign;
+    // 1. Verify Signature
+    const signature = params.sign;
+    const isValid = silkpayService.verifySignature(params, signature);
 
-    // Verify signature
-    const isValid = silkpayService.verifySignature(webhookData, receivedSign);
-    
     if (!isValid) {
-      logger.warn('Invalid webhook signature', { 
-        out_trade_no: webhookData.out_trade_no 
-      });
-      
-      return res.status(401).json({
-        code: 'INVALID_SIGNATURE',
-        message: 'Invalid signature'
-      });
+      logger.warn('Webhook signature verification failed', { params });
+      // Depending on SilkPay specs, we might want to return valid status anyway to stop retries if it's junk data,
+      // but usually we fail 400. However, doc says "otherwise we will retry", so we should probably fail?
+      // Let's return 400.
+      return res.status(400).send('Invalid Signature');
     }
 
-    // Find payout
-    const payout = await Payout.findOne({ 
-      out_trade_no: webhookData.out_trade_no 
-    });
+    // 2. Identify Status
+    // Use Adapter to normalize status code (e.g. "1" -> "SUCCESS")
+    const newStatus = silkpayService.normalizeStatus(params.status);
 
-    if (!payout) {
-      logger.warn('Payout not found for webhook', { 
-        out_trade_no: webhookData.out_trade_no 
-      });
-      
-      return res.status(404).json({
-        code: 'PAYOUT_NOT_FOUND',
-        message: 'Payout not found'
-      });
-    }
+    // 3. Update Payout Status via Service
+    // We need a method to find by mOrderId and update.
+    await payoutService.handleWebhookUpdate(params.mOrderId, newStatus, params);
 
-    // Update webhook tracking
-    payout.webhook_received = true;
-    payout.webhook_count += 1;
-    payout.last_webhook_at = new Date();
+    console.log('✅ [Webhook] Processed Successfully');
+    console.log('----------------------------------------------------');
 
-    // Update payout status if changed
-    if (webhookData.status && webhookData.status !== payout.status) {
-      await payoutService.updatePayoutStatus(payout, webhookData.status, webhookData);
-    } else {
-      await payout.save();
-    }
-
-    logger.info('Webhook processed successfully', { 
-      out_trade_no: webhookData.out_trade_no,
-      status: webhookData.status
-    });
-
-    // Return success to SilkPay
-    // Official Spec requires string "OK"
+    // 4. Return "OK" string as required
+    res.setHeader('Content-Type', 'text/plain');
     res.send('OK');
+
   } catch (error) {
-    logger.error('Webhook processing failed', { error: error.message });
-    next(error);
+    logger.error('Webhook processing error', { error: error.message });
+    console.error('❌ [Webhook] Error:', error);
+    // If internal error, send 500 so SilkPay retries
+    res.status(500).send('Internal Server Error');
   }
 };

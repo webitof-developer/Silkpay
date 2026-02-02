@@ -21,6 +21,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 export default function TransactionsPage() {
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter] = useState('ALL');
   const [accountSearch, setAccountSearch] = useState('');
@@ -34,13 +35,54 @@ export default function TransactionsPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        
         const response = await api.get('/transactions');
         // Backend returns: { success: true, data: { transactions, total } }
         if (response.success && response.data) {
-          setPayouts(response.data.transactions || []);
+          const rawTransactions = response.data.transactions || [];
+          const formattedTransactions = rawTransactions.map(t => {
+              const payout = t.payout_id || {};
+              const benDetails = payout.beneficiary_details || {};
+              
+              // Backend now guarantees normalized fields on Payout
+              return {
+                  ...t,
+                  id: t._id,
+                  
+                  // Identifiers
+                  mOrderId: payout.out_trade_no || t.reference_no || '-', // Our Request ID
+                  
+                  // UTR: Try explicit UTR from webhook/query first, then fallback to Gateway ID (silkpay_order_no), then Transaction Reference
+                  // Webhooks send flat 'utr', API responses send 'data.utr'
+                  utr: payout.silkpay_response?.utr || 
+                       payout.silkpay_response?.data?.utr || 
+                       '-',
+                  
+                  // Beneficiary Info (Flattened from Payout)
+                  beneficiary_name: benDetails.name || (t.description ? t.description.replace('Payout to ', '') : 'System'),
+                  account_number: benDetails.account_number || '',
+                  ifsc_code: benDetails.ifsc_code || '',
+                  bank_name: 'Unknown',
+                  
+                  // Source: Check beneficiary type if populated, or fallback to SAVED
+                  // Note: Backend must populate beneficiary_id for this to work precisely
+                  source: (payout.beneficiary_id?.type === 'ONE_TIME' || t.description?.includes('One-Time')) ? 'ONE_TIME' : 'SAVED',
+
+                  // Payment Details
+                  // Amount is explicitly converted by DashboardService, ensuring number type here too just in case
+                  amount: t.amount?.$numberDecimal ? parseFloat(t.amount.$numberDecimal) : (parseFloat(t.amount) || 0),
+                  created_at: t.createdAt,
+                  
+                  // Normalized Status
+                  // Use Payout Status if available, otherwise fallback based on type
+                   status: t.type === 'PAYOUT' ? (payout.status || 'PROCESSING') : 
+                          t.type === 'REFUND' ? 'SUCCESS' : 
+                          'SUCCESS' // Default for Fee/Adjustment 
+              };
+          });
+          setPayouts(formattedTransactions);
         } else if (Array.isArray(response.data)) {
-          // Fallback if response.data is directly an array
-          setPayouts(response.data);
+           setPayouts(response.data);
         }
       } catch (error) {
         console.error("Failed to fetch transactions", error);
@@ -52,10 +94,11 @@ export default function TransactionsPage() {
   }, []);
 
   const filteredPayouts = payouts.filter(item => {
+    const matchesType = typeFilter === 'ALL' || item.type === typeFilter;
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
     const matchesSource = sourceFilter === 'ALL' || item.source === sourceFilter;
-    const matchesAccount = item.account_number.toLowerCase().includes(accountSearch.toLowerCase());
-    const matchesBeneficiary = item.beneficiary_name.toLowerCase().includes(beneficiarySearch.toLowerCase());
+    const matchesAccount = item.account_number?.toLowerCase().includes(accountSearch.toLowerCase());
+    const matchesBeneficiary = item.beneficiary_name?.toLowerCase().includes(beneficiarySearch.toLowerCase());
     const matchesUTR = item.utr ? item.utr.toLowerCase().includes(utrSearch.toLowerCase()) : (utrSearch === '');
     
     let matchesAmount = true;
@@ -79,6 +122,7 @@ export default function TransactionsPage() {
   });
 
   const resetFilters = () => {
+      setTypeFilter('ALL');
       setStatusFilter('ALL');
       setSourceFilter('ALL');
       setAccountSearch('');
@@ -123,7 +167,11 @@ export default function TransactionsPage() {
     {
        accessorKey: "beneficiary_name",
        header: ({ column }) => (
-          <Button variant="ghost" className="p-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          <Button 
+            variant="ghost" 
+            className="p-0 hover:bg-transparent justify-start text-left font-semibold" 
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
              Beneficiary <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
        ),
@@ -144,16 +192,41 @@ export default function TransactionsPage() {
     {
       accessorKey: "amount",
       header: ({ column }) => (
-        <Button variant="ghost" className="p-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button 
+            variant="ghost" 
+            className="p-0 hover:bg-transparent justify-start text-left font-semibold" 
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
            Amount <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => <div className="font-medium">{formatCurrency(row.getValue("amount"))}</div>,
     },
+
+    {
+      accessorKey: "balance_after",
+      header: "Balance",
+      cell: ({ row }) => {
+          const bal = row.original.balance_after?.$numberDecimal ? parseFloat(row.original.balance_after.$numberDecimal) : (parseFloat(row.original.balance_after) || 0);
+          return <div className="text-muted-foreground text-xs">{formatCurrency(bal)}</div>;
+      },
+    },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
+      cell: ({ row }) => {
+          const type = row.original.type;
+          const status = row.getValue("status");
+          
+          if (type === 'PAYOUT') {
+             return <Badge variant="outline" className="border-blue-500 text-blue-500">PAYOUT</Badge>
+          }
+          if (type === 'REFUND') {
+             return <Badge variant="outline" className="border-green-500 text-green-500">REFUND</Badge>
+          }
+          
+          return <StatusBadge status={status} />;
+      },
     },
     {
         accessorKey: "utr",
@@ -174,7 +247,11 @@ export default function TransactionsPage() {
     {
       accessorKey: "created_at",
       header: ({ column }) => (
-          <Button variant="ghost" className="p-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          <Button 
+            variant="ghost" 
+            className="p-0 hover:bg-transparent justify-start text-left font-semibold" 
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
              Date <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
       ),
@@ -221,6 +298,22 @@ export default function TransactionsPage() {
                          onChange={(e) => setUtrSearch(e.target.value)}
                          className="bg-transparent"
                      />
+                </div>
+
+                {/* Type Filter */}
+                <div className="w-full sm:w-[150px]">
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All Types</SelectItem>
+                            <SelectItem value="PAYOUT">Payout</SelectItem>
+                            <SelectItem value="REFUND">Refund</SelectItem>
+                            <SelectItem value="FEE">Fee</SelectItem>
+                            <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 {/* Status Filter */}

@@ -8,6 +8,10 @@ exports.validateUpdateProfile = (req, res, next) => {
     name: Joi.string().min(2).max(100),
     mobile: Joi.string().pattern(/^[+]?[0-9]{10,15}$/).messages({
       'string.pattern.base': 'Invalid mobile number format'
+    }),
+    avatar: Joi.string().uri().allow('').optional(),
+    username: Joi.string().min(3).max(30).pattern(/^[a-zA-Z0-9_]+$/).messages({
+      'string.pattern.base': 'Username can only contain letters, numbers and underscores'
     })
   }).min(1).messages({
     'object.min': 'At least one field must be provided'
