@@ -5,34 +5,35 @@ const logger = require('./src/shared/utils/logger');
 
 const PORT = process.env.PORT || 3001;
 
-// Connect to MongoDB
-connectDB();
+async function startServer() {
+  try {
+    await connectDB();
+    logger.info("✅ DB connected successfully.");
 
-// Start Server
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-  logger.info(`📡 API available at http://localhost:${PORT}/api`);
-});
+    const server = app.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📡 API available at http://localhost:${PORT}/api`);
+    });
 
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    logger.info('HTTP server closed');
-    process.exit(0);
-  });
-});
+    process.on('SIGTERM', () => {
+      logger.info('SIGTERM received: shutting down');
+      server.close(() => process.exit(0));
+    });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: closing HTTP server');
-  server.close(() => {
-    logger.info('HTTP server closed');
-    process.exit(0);
-  });
-});
+    process.on('SIGINT', () => {
+      logger.info('SIGINT received: shutting down');
+      server.close(() => process.exit(0));
+    });
 
-// Handle Unhandled Promise Rejections
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Promise Rejection:', err);
-  server.close(() => process.exit(1));
-});
+    process.on('unhandledRejection', (err) => {
+      logger.error('Unhandled Promise Rejection:', err);
+      server.close(() => process.exit(1));
+    });
+
+  } catch (err) {
+    logger.error('❌ Failed to connect to DB:', err);
+    process.exit(1);
+  }
+}
+
+startServer();

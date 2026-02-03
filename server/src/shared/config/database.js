@@ -1,30 +1,37 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+let cached = global.mongooseConnection;
 
-    logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
-    logger.info(`📊 Database: ${conn.connection.name}`);
+if (!cached) {
+  cached = { conn: null, promise: null };
+  global.mongooseConnection = cached;
+}
 
-    // Connection event handlers
-    mongoose.connection.on('error', (err) => {
-      logger.error('MongoDB connection error:', err);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-    });
-
-    mongoose.connection.on('reconnected', () => {
-      logger.info('MongoDB reconnected');
-    });
-
-  } catch (error) {
-    logger.error('❌ MongoDB connection failed:', error.message);
-    process.exit(1);
+async function connectDB() {
+  if (cached.conn) {
+    return cached.conn;
   }
-};
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(process.env.MONGODB_URI);
+  }
+  const conn = await cached.promise;
+  cached.conn = conn;
+
+  logger.info(`✅ MongoDB Connected: ${conn.connection.host}`);
+  logger.info(`📊 Database: ${conn.connection.name}`);
+
+  mongoose.connection.on('error', (err) => {
+    logger.error('MongoDB connection error:', err);
+  });
+  mongoose.connection.on('disconnected', () => {
+    logger.warn('MongoDB disconnected');
+  });
+  mongoose.connection.on('reconnected', () => {
+    logger.info('MongoDB reconnected');
+  });
+
+  return conn;
+}
 
 module.exports = connectDB;
