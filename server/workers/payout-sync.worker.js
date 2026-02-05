@@ -48,6 +48,7 @@ async function syncPayoutStatuses() {
 
           // Update if status changed
           if (currentStatus !== payout.status) {
+            payout.finalized_by = 'QUERY';
             await payoutService.updatePayoutStatus(payout, currentStatus, statusResponse.raw);
             logger.info(`Payout status updated: ${payout.out_trade_no} -> ${currentStatus}`);
           }

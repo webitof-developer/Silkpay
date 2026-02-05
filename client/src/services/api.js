@@ -55,9 +55,9 @@ const handleMockRequest = async (method, endpoint, payload) => {
     };
 };
 
-const request = async (endpoint, { method = 'GET', body, ...customConfig } = {}) => {
+const request = async (endpoint, { method = 'GET', body, params, ...customConfig } = {}) => {
     if (USE_MOCK_DATA) {
-        return handleMockRequest(method, endpoint, body);
+        return handleMockRequest(method, endpoint, body || params);
     }
 
     const token = getAuthToken();
@@ -67,15 +67,26 @@ const request = async (endpoint, { method = 'GET', body, ...customConfig } = {})
         ...customConfig.headers,
     };
 
+       // 🔑 BUILD QUERY STRING FOR GET REQUESTS
+    let url = `${API_BASE_URL}${endpoint}`;
+    if (params && Object.keys(params).length > 0) {
+        const searchParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                searchParams.append(key, value);
+            }
+        });
+        url += `?${searchParams.toString()}`;
+    }
+
     const config = {
         method,
         headers,
         ...(body ? { body: JSON.stringify(body) } : {}),
-        ...customConfig,
     };
 
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        const response = await fetch(url, config);
         
         // Handle 401 Unauthorized
         if (response.status === 401) {

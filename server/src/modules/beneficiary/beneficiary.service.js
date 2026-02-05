@@ -173,6 +173,7 @@ class BeneficiaryService {
     }
     
     beneficiary.status = 'INACTIVE';
+    beneficiary.deactivatedAt = new Date();
     await beneficiary.save();
     
     logger.info(`Beneficiary deleted (soft): ${beneficiary._id}`);

@@ -206,7 +206,10 @@ Soft delete (sets status to INACTIVE).
 List payouts.
 
 **Query Parameters:**
-- `status` (PENDING, SUCCESS, FAILED)
+- `status` (PENDING, PROCESSING, SUCCESS, FAILED, REVERSED)
+  - `PROCESSING`: Request accepted by SilkPay, awaiting bank confirmation. NOT FINAL.
+  - `SUCCESS`: Confirmed successful by Webhook (Authoritative).
+  - `FAILED`: Confirmed failed.
 - `beneficiary_id`
 - `page`, `limit`
 
@@ -217,10 +220,11 @@ Create payout order.
 **Request:**
 ```json
 {
+  "source": "SAVED", // or "ONE_TIME"
   "beneficiary_id": "optional_if_adhoc",
-  "beneficiary_name": "Required for One-Time",
-  "account_number": "Required for One-Time",
-  "ifsc_code": "Required for One-Time",
+  "beneficiary_name": "Required if source=ONE_TIME",
+  "account_number": "Required if source=ONE_TIME",
+  "ifsc_code": "Required if source=ONE_TIME",
   "amount": 5000.00,
   "description": "Vendor Payment"
 }

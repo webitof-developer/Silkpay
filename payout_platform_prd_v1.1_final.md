@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 ## Payout Management Platform
 
-**Document Version:** 1.1  
-**Last Updated:** January 29, 2026  
-**Status:** Draft
+**Document Version:** 1.2  
+**Last Updated:** February 02, 2026  
+**Status:** Implemented
 
 ---
 
@@ -140,18 +140,19 @@ Real-time metrics for outgoing payments:
   - ID
   - Merchant No.
   - Merchant Order No.
-  - Type (PAYOUT)
+  - Type (PAYOUT, REFUND, FEE)
   - Amount
   - Merchant Fee
   - Before Total Amount
   - After Total Amount
-  - Before Avail Amount
-  - After Avail Amount
+  - Before Avail Amount (Balance Before)
+  - After Avail Amount (Balance After)
   - Description (e.g., "Payout Success", "Payout Rollback")
   - Create Time
 
 **Filters:**
 - Date Range
+- Type (Payout, Refund, Fee)
 
 **Actions:**
 - Search
@@ -176,7 +177,7 @@ For **One-time Payout:**
 - Account Number*
 - IFSC Code*
 - Bank Name (auto-populated from IFSC or manual)
-- UPI ID (optional alternative)
+- UPI ID (Optional - Implemented)
 - Amount*
 - Description/Notes
 

@@ -1,13 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown, Download } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash, ArrowUpDown, Download, Info } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +21,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatDate } from '@/utils/formatters';
 import { exportToCSV } from '@/utils/exportData';
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -29,25 +45,33 @@ import {
 
 export default function BeneficiariesPage() {
   const [beneficiaries, setBeneficiaries] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editingBeneficiary, setEditingBeneficiary] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   
   // Filters
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
   const [search, setSearch] = useState('');
-  const [ifscSearch, setIfscSearch] = useState('');
-  const [bankFilter, setBankFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  const queryParams = useMemo(() => {
+    const params = { page, limit };
+    if (search) params.search = search;
+    if (statusFilter !== 'ALL') params.status = statusFilter;
+    return params;
+  }, [page, limit, search, statusFilter]);
 
   useEffect(() => {
     fetchBeneficiaries();
-  }, []);
+  }, [queryParams]);
 
   const fetchBeneficiaries = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/beneficiaries');
+      const response = await api.get('/beneficiaries', { params: queryParams });
       const rawBeneficiaries = response.data?.beneficiaries || [];
       const mappedBeneficiaries = rawBeneficiaries.map(b => ({
           ...b,
@@ -60,8 +84,13 @@ export default function BeneficiariesPage() {
           email: b.contact_info?.email || ''
       }));
       setBeneficiaries(mappedBeneficiaries);
+      
+      if (response.data?.pagination) {
+          setPagination(response.data.pagination);
+      }
     } catch (error) {
        console.error("Failed to fetch beneficiaries", error);
+       toast.error("Failed to fetch beneficiaries");
     } finally {
       setLoading(false);
     }
@@ -107,12 +136,16 @@ export default function BeneficiariesPage() {
                  email: values.email || undefined
              },
              bank_details: {
-                 account_number: values.account_number,
                  ifsc_code: values.ifsc_code,
                  bank_name: values.bank_name,
                  upi_id: values.upi_id
              }
          };
+
+         // Only update account number if it's not masked
+         if (values.account_number && !values.account_number.includes('XXXX')) {
+             payload.bank_details.account_number = values.account_number;
+         }
 
         const response = await api.put(`/beneficiaries/${editingBeneficiary.id}`, payload);
          if (response.success) {
@@ -137,7 +170,7 @@ export default function BeneficiariesPage() {
      try {
         const response = await api.delete(`/beneficiaries/${deleteId}`);
         if (response.success) {
-            toast.success("Beneficiary deleted successfully");
+            toast.success("Beneficiary deactivated. Inactive beneficiaries cannot be used for payouts.");
             fetchBeneficiaries();
         } else {
             toast.error(response.message || "Failed to delete beneficiary");
@@ -157,13 +190,13 @@ export default function BeneficiariesPage() {
 
   const handleExport = () => {
     // Check if there are any beneficiaries to export
-    if (filteredBeneficiaries.length === 0) {
+    if (beneficiaries.length === 0) {
       toast.error("No beneficiaries to export");
       return;
     }
 
       exportToCSV(
-          filteredBeneficiaries,
+          beneficiaries,
           [
               { key: 'name', label: 'Name' },
               { key: 'account_number', label: 'Account Number' },
@@ -178,23 +211,10 @@ export default function BeneficiariesPage() {
   };
 
   const resetFilters = () => {
+      setPage(1);
       setSearch('');
-      setIfscSearch('');
-      setBankFilter('ALL');
       setStatusFilter('ALL');
   };
-
-  // Apply filters
-  const filteredBeneficiaries = beneficiaries.filter(b => {
-    const matchSearch = !search || b.name?.toLowerCase().includes(search.toLowerCase());
-    const matchIfsc = !ifscSearch || b.ifsc_code?.toLowerCase().includes(ifscSearch.toLowerCase());
-    const matchBank = bankFilter === 'ALL' || b.bank_name === bankFilter;
-    const matchStatus = statusFilter === 'ALL' || b.status === statusFilter;
-    return matchSearch && matchIfsc && matchBank && matchStatus;
-  });
-
-  // Get unique bank names for filter
-  const uniqueBanks = ['ALL', ...new Set(beneficiaries.map(b => b.bank_name).filter(Boolean))];
 
   const columns = [
     {
@@ -237,6 +257,27 @@ export default function BeneficiariesPage() {
       cell: ({ row }) => {
         const beneficiary = row.original
  
+        if (beneficiary.status === 'INACTIVE') {
+            return (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0 cursor-default hover:bg-transparent">
+                                <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" align="center" className="max-w-[200px] text-center">
+                            <p>
+                                {beneficiary.deactivatedAt 
+                                    ? `Deactivated on ${formatDate(beneficiary.deactivatedAt)}. Inactive beneficiaries cannot be used for payouts.` 
+                                    : "This beneficiary has been deactivated and cannot be used for payouts."}
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )
+        }
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -277,31 +318,10 @@ export default function BeneficiariesPage() {
       <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center flex-wrap">
            <div className="w-full sm:w-[250px]">
                <Input 
-                   placeholder="Search by name..." 
+                   placeholder="Search by name, mobile..." 
                    value={search}
                    onChange={(e) => setSearch(e.target.value)}
                />
-           </div>
-           
-           <div className="w-full sm:w-[200px]">
-               <Input 
-                   placeholder="Search IFSC..." 
-                   value={ifscSearch}
-                   onChange={(e) => setIfscSearch(e.target.value)}
-               />
-           </div>
-
-           <div className="w-full sm:w-[200px]">
-                <Select value={bankFilter} onValueChange={setBankFilter}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="All Banks" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {uniqueBanks.map(bank => (
-                            <SelectItem key={bank} value={bank}>{bank === 'ALL' ? 'All Banks' : bank}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
            </div>
            
            <div className="w-full sm:w-[150px]">
@@ -338,7 +358,44 @@ export default function BeneficiariesPage() {
         </DialogContent>
       </Dialog>
 
-      {loading ? <div>Loading...</div> : <DataTable columns={columns} data={filteredBeneficiaries} />}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the beneficiary
+              and remove their data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {loading ? <div>Loading...</div> : <DataTable columns={columns} data={beneficiaries} manualPagination={true} />}
+
+      {/* Pagination Controls */}
+      <div className="flex justify-end gap-2 mt-4">
+        <Button
+          variant="outline"
+          disabled={pagination.page <= 1}
+          onClick={() => setPage(p => p - 1)}
+        >
+          Prev
+        </Button>
+        <span className="flex items-center text-sm text-muted-foreground px-2">
+            Page {pagination.page} of {pagination.pages}
+        </span>
+        <Button
+          variant="outline"
+          disabled={pagination.page >= pagination.pages}
+          onClick={() => setPage(p => p + 1)}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   );
 }

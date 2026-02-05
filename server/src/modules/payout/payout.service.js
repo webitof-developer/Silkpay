@@ -231,6 +231,7 @@ class PayoutService {
       
       // Update payout if status changed
       if (statusResponse.data?.status && statusResponse.data.status !== payout.status) {
+        payout.finalized_by = 'MANUAL'; // Since this is triggered manually via API
         await this.updatePayoutStatus(payout, statusResponse.data.status, statusResponse);
       }
 
@@ -255,7 +256,8 @@ class PayoutService {
     payout.silkpay_response = responseData;
 
     if (newStatus === 'SUCCESS') {
-      payout.completed_at = new Date();
+      payout.completed_at = new Date(); // Strict Finality Timestamp
+      payout.webhook_received = payout.webhook_received || false; // Ensure field exists
       
       // Update merchant balance
       const merchant = await Merchant.findById(payout.merchant_id);
@@ -322,14 +324,30 @@ class PayoutService {
       throw new Error('Payout not found');
     }
 
-    // Idempotency Check: If already in final state, ignore
-    if (payout.status === 'SUCCESS' || payout.status === 'FAILED' || payout.status === 'REVERSED') {
+    // Idempotency Check: If already in final state, ignore updates unless it's a correction (e.g. strict requirement: 2/3 override 0/1)
+    // But per ground truth: 0/1 are not final. 
+    // And if DB says Success/Failed, we only override if the new status is somehow different but authoritative? 
+    // Ground Truth says: Callback is FINAL. If we already have a callback final state, we ignore.
+    if (payout.isFinalState()) {
         logger.info(`Webhook: Payout ${mOrderId} already in terminal state ${payout.status}. Ignoring update to ${newStatus}.`);
         return payout;
     }
 
-    // If status matches current, do nothing
-    if (payout.status === newStatus) return payout;
+    // Set Webhook Tracking fields
+    payout.webhook_received = true;
+    payout.last_webhook_at = new Date();
+    payout.webhook_count = (payout.webhook_count || 0) + 1;
+    
+    // We save these tracking fields regardless of status change? 
+    // Yes, to indicate we received authoritative signal.
+    // If status matches current, we still save metadata.
+    if (payout.status === newStatus) {
+        await payout.save();
+        return payout;
+    }
+
+    // Mark authoritative source
+    payout.finalized_by = 'WEBHOOK';
 
     return await this.updatePayoutStatus(payout, newStatus, responseData);
   }

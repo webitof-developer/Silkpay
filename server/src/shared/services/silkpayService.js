@@ -43,8 +43,8 @@ const generateSignature = (data, type = 'balance') => {
     case 'balance': // md5(mId+timestamp+secret)
       signString = `${data.mId}${data.timestamp}${CONFIG.secretKey}`;
       break;
-    case 'list': // md5(mId+timestamp+secret) - Assuming generic read signature
-      signString = `${data.mId}${data.timestamp}${CONFIG.secretKey}`;
+    case 'list': // md5(mId + (mOrderId if present) + timestamp + secret)
+      signString = `${data.mId}${data.mOrderId || ''}${data.timestamp}${CONFIG.secretKey}`;
       break;
     default:
       throw new Error(`Unknown signature type: ${type}`);
@@ -63,10 +63,14 @@ class SilkPayService {
    * Maps SilkPay codes to Internal Status
    */
   normalizeStatus(statusCode) {
-      if (statusCode === '1' || statusCode === '200' || statusCode === '2' || statusCode === 2) return 'SUCCESS';
-      if (statusCode === '3' || statusCode === 3 || statusCode === 'FAILED') return 'FAILED';
-      if (statusCode === '0' || statusCode === 'PROCESSING') return 'PROCESSING'; 
-      return 'FAILED';
+      // Ground Truth: 0=Initial, 1=Processing -> PROCESSING
+      // 2=Success -> SUCCESS
+      // 3=Failed -> FAILED
+      const s = String(statusCode);
+      if (s === '2' || s === '200') return 'SUCCESS'; // 200 is from create response, 2 is from query/callback
+      if (s === '3' || s === 'FAILED') return 'FAILED';
+      if (s === '0' || s === '1' || s === 'PROCESSING') return 'PROCESSING';
+      return 'FAILED'; // Default to failed for unknown states to be safe
   }
 
   /**
@@ -142,28 +146,11 @@ class SilkPayService {
     try {
       const response = await client.post('/transaction/payout/query', params, { timeout: 15000 });
       
-      // Normalize Status from 'status' field (e.g. "1" or "2")
+      // Normalize Status from 'status' field
+      // API returns: 0=Initial, 1=Processing, 2=Success, 3=Failed
       const silkpayStatus = response.data.data?.status || response.data.status;
       const normalizedStatus = this.normalizeStatus(silkpayStatus);
       
-      // Checking if status is PROCESSING, verify with List API (Source of Truth) because /query might be stale
-      if (normalizedStatus === 'PROCESSING') {
-          try {
-             const listStatus = await this.checkStatusViaList(outTradeNo);
-             if (listStatus && listStatus !== 'PROCESSING') {
-                 logger.info(`Corrected Status via List API: ${listStatus} (Query said ${normalizedStatus})`);
-                 return {
-                     status: listStatus,
-                     external_id: response.data.data?.payOrderId,
-                     amount: response.data.data?.amount,
-                     raw: response.data // Keep original raw but override status
-                 };
-             }
-          } catch (listErr) {
-             logger.warn('Failed to double-check with List API', listErr);
-          }
-      }
-
       return {
           status: normalizedStatus,
           external_id: response.data.data?.payOrderId,

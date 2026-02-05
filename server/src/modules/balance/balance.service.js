@@ -38,41 +38,35 @@ class BalanceService {
 
     try {
       // Query SilkPay for current balance
-      const balanceResponse = await silkpayService.getMerchantBalance();
+      // Returns { available: number, pending: number, raw: object }
+      const balanceData = await silkpayService.getMerchantBalance();
       
-      logger.info(`SilkPay Balance Response for ${merchantId}:`, balanceResponse);
+      logger.info(`SilkPay Balance Response for ${merchantId}:`, balanceData);
 
-      // Official Spec Check: status === "200"
-      if (balanceResponse.status === '200' && balanceResponse.data) {
-        // Use totalAmount from SilkPay as the truth for wallet balance
-        const totalAmount = parseFloat(balanceResponse.data.totalAmount || 0);
-        
-        // Update merchant balance
-        merchant.balance.total = totalAmount;
-        
-        // Update available balance: use SilkPay's value if present, otherwise calculate
-        if (balanceResponse.data.availableAmount) {
-             merchant.balance.available = parseFloat(balanceResponse.data.availableAmount);
-        } else {
-             merchant.balance.available = totalAmount - merchant.balance.pending;
-        }
-        
-        await merchant.save();
-        
-        logger.info(`Balance synced for merchant ${merchant.merchant_no}`, {
-          silkpay_total: totalAmount,
-          available: merchant.balance.available,
-          pending: merchant.balance.pending
-        });
-        
-        return {
-          merchant_no: merchant.merchant_no,
-          balance: merchant.balance,
-          synced_at: new Date()
-        };
-      } else {
-        throw new Error(balanceResponse.message || 'Balance sync failed');
-      }
+      // silkpayService would have thrown if error, so we assume success here.
+      
+      const available = balanceData.available;
+      const pending = balanceData.pending;
+      const total = available + pending;
+      
+      // Update merchant balance
+      merchant.balance.available = available;
+      merchant.balance.pending = pending;
+      merchant.balance.total = total;
+      
+      await merchant.save();
+      
+      logger.info(`Balance synced for merchant ${merchant.merchant_no}`, {
+        total: total,
+        available: available,
+        pending: pending
+      });
+      
+      return {
+        merchant_no: merchant.merchant_no,
+        balance: merchant.balance,
+        synced_at: new Date()
+      };
     } catch (error) {
       logger.error(`Balance sync failed for merchant ${merchant.merchant_no}:`, error.message);
       throw error;

@@ -42,6 +42,7 @@ export const createPayout = async (payoutData) => {
  */
 export const queryPayoutStatus = async (payOrderId) => {
   const response = await api.post('/payouts/query', { payOrderId });
+  console.log(response.data);
   return response.data;
 };
 

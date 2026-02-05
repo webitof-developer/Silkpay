@@ -67,7 +67,12 @@ export function PayoutForm() {
   useEffect(() => {
     const fetchBeneficiaries = async () => {
       try {
-        const response = await api.get('/beneficiaries');
+        const response = await api.get('/beneficiaries', { 
+            params: { 
+                status: 'ACTIVE', 
+                limit: 100 // Ensure we fetch enough active beneficiaries 
+            } 
+        });
         if (response.success && response.data) {
           setBeneficiaries(response.data.beneficiaries || []);
         } else if (Array.isArray(response.data)) {

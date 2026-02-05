@@ -102,6 +102,11 @@ const PayoutSchema = new mongoose.Schema({
   },
   last_webhook_at: {
     type: Date
+  },
+  finalized_by: {
+    type: String,
+    enum: ['WEBHOOK', 'QUERY', 'MANUAL'],
+    index: true
   }
 }, {
   timestamps: true,

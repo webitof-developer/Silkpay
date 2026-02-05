@@ -194,7 +194,25 @@ Running as separate processes:
 └──────────────┘                                 └──────────────┘
 ```
 
-### 3. Balance Sync Flow
+```
+
+### 3. Payout State Machine & Finality
+
+**Core Rule: Webhook is Authoritative.**
+
+1.  **Creation**: `PENDING` -> `PROCESSING` (via API 200 OK)
+2.  **Monitoring**: 
+    - Worker polls `Query` endpoint (Informational only).
+    - `Query` often returns `0` (Processing) indefinitely.
+3.  **Completion**:
+    - **Webhook** arrives with `2` (Success) or `3` (Failed).
+    - Status updates to `SUCCESS` or `FAILED`.
+    - `completed_at` is set. Matches "Final" state.
+4.  **Ledger**:
+    - `SUCCESS` -> No new transaction (already debited at creation).
+    - `FAILED` -> New `REFUND` transaction created.
+
+### 4. Balance Sync Flow
 
 ```
 ┌──────────────┐    1. Cron Trigger (Hourly)    ┌──────────────┐

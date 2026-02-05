@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/services/api';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/ui/data-table';
@@ -27,10 +27,19 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ReceiptDialog } from '@/components/payouts/ReceiptDialog';
 
 export default function PayoutsPage() {
+  /* State */
   const [payouts, setPayouts] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [syncingId, setSyncingId] = useState(null);
+  
+  // Filters
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter] = useState('ALL');
   const [accountSearch, setAccountSearch] = useState('');
@@ -39,92 +48,81 @@ export default function PayoutsPage() {
   const [maxAmount, setMaxAmount] = useState('');
   const [dateFilter, setDateFilter] = useState();
 
+  /**
+   * Canonical query params
+   */
+  const queryParams = useMemo(() => {
+    const params = { page, limit };
+
+    if (statusFilter !== 'ALL') params.status = statusFilter;
+    if (sourceFilter !== 'ALL') params.source = sourceFilter;
+    if (accountSearch) params.account_number = accountSearch;
+    if (beneficiarySearch) params.beneficiary_name = beneficiarySearch;
+    if (minAmount) params.min_amount = minAmount;
+    if (maxAmount) params.max_amount = maxAmount;
+    if (dateFilter?.from) params.start_date = dateFilter.from;
+    if (dateFilter?.to) params.end_date = dateFilter.to;
+
+    return params;
+  }, [page, limit, statusFilter, sourceFilter, accountSearch, beneficiarySearch, minAmount, maxAmount, dateFilter]);
+
   useEffect(() => {
     fetchPayouts();
-  }, []);
+  }, [queryParams]);
 
   const fetchPayouts = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/payouts');
-      // Backend returns: { success: true, data: { payouts, total } }
-      if (response.success && response.data) {
-          const rawPayouts = response.data.payouts || [];
-          const formattedPayouts = rawPayouts.map(p => ({
-              ...p,
-              id: p._id,
-              mOrderId: p.out_trade_no,
-              beneficiary_name: p.beneficiary_details?.name || 'Unknown',
-              account_number: p.beneficiary_details?.account_number || '',
-              ifsc_code: p.beneficiary_details?.ifsc_code || '',
-              bank_name: 'Unknown',
-              // Source: Check beneficiary type if populated, or fallback to SAVED
-              // If creating creating ONE_TIME payout, backend should ideally tag it.
-              // We rely on beneficiary_details mainly or associated beneficiary.
-              // Since we don't have the beneficiary object populated, we check if name matches or rely on context
-              // Ideally Backend should return 'source' or populated beneficiary.
-              source: (p.beneficiary_id?.type === 'ONE_TIME') ? 'ONE_TIME' : 'SAVED',
+      const response = await api.get('/payouts', { params: queryParams });
+      
+      let rawPayouts = [];
+      let paginationData = {};
 
-              // UTR: Only show if real. Silkpay often sends check_status response with 'data.utr'
-              utr: p.silkpay_response?.data?.utr || p.silkpay_response?.utr || '-',
-              
-              status: p.status, // Uses model status directly
-              amount: p.amount?.$numberDecimal ? parseFloat(p.amount.$numberDecimal) : (parseFloat(p.amount) || 0),
-              created_at: p.createdAt
-          }));
-          setPayouts(formattedPayouts);
+      if (response.success && response.data) {
+          rawPayouts = response.data.payouts || [];
+          paginationData = {
+              page: response.data.page || 1,
+              pages: response.data.pages || 1,
+              total: response.data.total || 0
+          };
       } else if (Array.isArray(response.data)) {
-         // Fallback for array response
-         const formattedPayouts = response.data.map(p => ({
-              ...p,
-              id: p._id,
-              mOrderId: p.out_trade_no,
-              beneficiary_name: p.beneficiary_details?.name || 'Unknown',
-              account_number: p.beneficiary_details?.account_number || '',
-              ifsc_code: p.beneficiary_details?.ifsc_code || '',
-              // Fallback source logic same as above
-              source: (p.beneficiary_id?.type === 'ONE_TIME') ? 'ONE_TIME' : 'SAVED',
-              utr: p.silkpay_response?.data?.utr || p.silkpay_response?.utr || '-',
-              status: p.status,
-              amount: p.amount?.$numberDecimal ? parseFloat(p.amount.$numberDecimal) : (parseFloat(p.amount) || 0),
-              created_at: p.createdAt
-          }));
-        setPayouts(formattedPayouts);
+           rawPayouts = response.data;
+           // Fallback pagination if array is flat (assumes all data)
+           // But if we requested page 1/limit 20, we assume backend handled it.
+           paginationData = { page: 1, pages: 1, total: rawPayouts.length };
       }
+
+      const formattedPayouts = rawPayouts.map(p => ({
+          ...p,
+          id: p._id,
+          mOrderId: p.out_trade_no,
+          beneficiary_name: p.beneficiary_details?.name || 'Unknown',
+          account_number: p.beneficiary_details?.account_number || '',
+          ifsc_code: p.beneficiary_details?.ifsc_code || '',
+          bank_name: 'Unknown',
+          bank_name: 'Unknown',
+          source: p.source || 'UNKNOWN', // Safe fallback, do not infer from beneficiary
+          utr: p.silkpay_response?.data?.utr || p.silkpay_response?.utr || '-',
+          status: p.status,
+          amount: p.amount?.$numberDecimal ? parseFloat(p.amount.$numberDecimal) : (parseFloat(p.amount) || 0),
+          created_at: p.createdAt,
+          completed_at: p.completed_at,
+          failure_reason: p.failure_reason
+      }));
+      setPayouts(formattedPayouts);
+      setPagination(paginationData);
     } catch (error) {
        console.error("Failed to fetch payouts", error);
+       toast.error("Failed to fetch payouts");
     } finally {
       setLoading(false);
     }
   };
-
-  const filteredPayouts = payouts.filter(item => {
-    const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
-    const matchesSource = sourceFilter === 'ALL' || item.source === sourceFilter;
-    const matchesAccount = item.account_number?.toLowerCase().includes(accountSearch.toLowerCase());
-    const matchesBeneficiary = item.beneficiary_name?.toLowerCase().includes(beneficiarySearch.toLowerCase());
-    
-    let matchesAmount = true;
-    const amount = parseFloat(item.amount);
-    if (minAmount && amount < parseFloat(minAmount)) matchesAmount = false;
-    if (maxAmount && amount > parseFloat(maxAmount)) matchesAmount = false;
-
-    let matchesDate = true;
-    if (dateFilter?.from) {
-        const itemDate = new Date(item.created_at);
-        const fromDate = new Date(dateFilter.from);
-        fromDate.setHours(0, 0, 0, 0);
-        
-        const toDate = dateFilter.to ? new Date(dateFilter.to) : new Date(dateFilter.from);
-        toDate.setHours(23, 59, 59, 999);
-
-        matchesDate = itemDate >= fromDate && itemDate <= toDate;
-    }
-
-    return matchesStatus && matchesSource && matchesAccount && matchesBeneficiary && matchesAmount && matchesDate;
-  });
+  
+  // Removed old filteredPayouts logic which was here
 
   const resetFilters = () => {
+      setPage(1); // Reset page on filter reset
       setStatusFilter('ALL');
       setSourceFilter('ALL');
       setAccountSearch('');
@@ -135,13 +133,13 @@ export default function PayoutsPage() {
   };
 
   const handleExport = () => {
-      if (filteredPayouts.length === 0) {
+      if (payouts.length === 0) {
           toast.error("No payouts to export");
           return;
       }
       
       exportToCSV(
-          filteredPayouts,
+          payouts,
           [
               { key: 'id', label: 'ID' },
               { key: 'mOrderId', label: 'Order ID' },
@@ -156,10 +154,10 @@ export default function PayoutsPage() {
           ],
           'payouts_export'
       );
-      toast.success('Payouts exported successfully');
   };
 
   const handleSyncStatus = async (id) => {
+    setSyncingId(id);
     const toastId = toast.loading("Checking status...");
     try {
         const response = await api.get(`/payouts/${id}/status`);
@@ -172,6 +170,8 @@ export default function PayoutsPage() {
     } catch (error) {
         console.error("Sync error:", error);
         toast.error(error.message || "Sync failed", { id: toastId });
+    } finally {
+        setSyncingId(null);
     }
   };
 
@@ -224,12 +224,15 @@ export default function PayoutsPage() {
       },
       {
         accessorKey: "created_at",
-        header: ({ column }) => (
-            <Button variant="ghost" className="p-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-               Date <ArrowUpDown className="ml-2 h-4 w-4" />
-            </Button>
+        header: "Timing", 
+        cell: ({ row }) => (
+            <div className="flex flex-col text-xs">
+                <span className="text-muted-foreground">Created: {formatDate(row.getValue("created_at"), 'long')}</span>
+                {row.original.completed_at && (
+                    <span className="text-muted-foreground/80">Completed: {formatDate(row.original.completed_at, 'long')}</span>
+                )}
+            </div>
         ),
-        cell: ({ row }) => <div className="text-sm text-muted-foreground">{formatDate(row.getValue("created_at"), 'long')}</div>,
       },
       {
         id: "actions",
@@ -290,9 +293,11 @@ export default function PayoutsPage() {
                                         variant="ghost" 
                                         size="sm" 
                                         onClick={() => handleSyncStatus(row.original.id)}
+                                        disabled={syncingId === row.original.id}
                                         className="text-primary hover:text-pink-500/80 hover:bg-pink-500/30 h-8 px-2"
                                     >
-                                        <RotateCw className="w-3.5 h-3.5 mr-1" /> Sync
+                                        <RotateCw className={cn("w-3.5 h-3.5 mr-1", syncingId === row.original.id && "animate-spin")} /> 
+                                        {syncingId === row.original.id ? "Syncing..." : "Sync"}
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
@@ -442,7 +447,28 @@ export default function PayoutsPage() {
           </div>
       </div>
       
-      {loading ? <div>Loading...</div> : <DataTable columns={columns} data={filteredPayouts} />}
+      {loading ? <div>Loading...</div> : <DataTable columns={columns} data={payouts} manualPagination={true} />}
+
+      {/* Pagination Controls */}
+      <div className="flex justify-end gap-2 mt-4">
+        <Button
+          variant="outline"
+          disabled={pagination.page <= 1}
+          onClick={() => setPage(p => p - 1)}
+        >
+          Prev
+        </Button>
+        <span className="flex items-center text-sm text-muted-foreground px-2">
+            Page {pagination.page} of {pagination.pages}
+        </span>
+        <Button
+          variant="outline"
+          disabled={pagination.page >= pagination.pages}
+          onClick={() => setPage(p => p + 1)}
+        >
+          Next
+        </Button>
+      </div>
       
       <ReceiptDialog 
         open={receiptOpen} 

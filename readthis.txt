@@ -98,58 +98,67 @@ If the payment is received but the order is not marked as successful, you can re
 Q:What should I do if the order amount is inconsistent with the actual payment amount?
 A:We will refund according to the actual amount received
 -------------------------------------
+
+REQUIRED FIELD DETAILS
+--
 amount
 string
 required
 Order amount, example:100.00 inr
 Example:
 100.00
-
+--
 mId
 string
 required
 Merchant number, provided after account opening, example: TEST
-
+--
 mOrderId
 string
 required
 Merchant order number, within 64 characters, example: 12345678
-
+--
 payOrderId
 string
 required
 When a merchant requests payment and places an order, the gateway order number is returned in the response result.
-
+--
 timestamp
 number
 required
 Timestamp, accurate to milliseconds, example: 1647760272251
-
+--
 utr
 string
 required
 UTR
-
+--
 notifyUrl
 string
 required
 Callback notification address, for example: http://localhost/silkpay
-
+--
+status
+integer
+required
+Order status, 2: payment successful, 3: payment failed.
+--
 upi
 string
+--
 bankNo
 string
 Account of Beneficiary.
-
+--
 ifsc
 string
 IFSC of Beneficiary.
-
+--
 name
 string
 required
 Name of Beneficiary.
-
+`
 sign
 string
 required
@@ -324,4 +333,9 @@ RESPONSE SAMPLE 200
 {
   OK
 }
+
+Payment result asynchronous notification interface for payment order The payment callback address is provided by the merchant, and is the notifyUrl field submitted by the merchant when making a payment request. 
+After receiving the callback, the merchant must verify the consistency of the parameters and determine whether the sign is consistent.
+
+ After receiving the callback, the merchant needs to return the string OK to confirm that the callback is successful, otherwise we will retry every 5 minutes, up to 5 times.
 ---------------------------

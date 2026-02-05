@@ -61,6 +61,10 @@ const BeneficiarySchema = new mongoose.Schema({
     enum: ['REGULAR', 'ONE_TIME'],
     default: 'REGULAR'
   },
+  deactivatedAt: {
+    type: Date,
+    default: null
+  },
   stats: {
     total_payouts: {
       type: Number,

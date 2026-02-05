@@ -32,6 +32,12 @@ SilkPay Payout Platform enables businesses to:
 
 **Note:** This platform is exclusively for **payouts only** (no payin functionality).
 
+## 🔑 Key Concepts
+
+- **Push-First Architecture:** Payout finality is determined by **SilkPay Webhooks** (Callback), not by synchronous API responses.
+- **Latency:** Payouts may remain in `PROCESSING` state for minutes until the banking network confirms the transaction via webhook.
+- **Ledger:** Transactions are recorded once at creation. Failed payouts generate a separate `REFUND` transaction.
+
 ---
 
 ## ✨ Features
