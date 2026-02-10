@@ -13,6 +13,14 @@ async function startServer() {
     const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📡 API available at http://localhost:${PORT}/api`);
+      
+      // Start Keep-Alive Service (prevent Render sleep)
+      try {
+          const keepAlive = require('./src/shared/utils/keepAlive');
+          keepAlive();
+      } catch (err) {
+          logger.warn('Failed to start Keep-Alive service:', err.message);
+      }
     });
 
     process.on('SIGTERM', () => {
