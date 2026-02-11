@@ -26,7 +26,6 @@ async function seedDatabase() {
       email: 'test@silkpay.local',
       mobile: '+919876543210',
       password: 'password123', // Will be hashed automatically
-      password: 'password123', // Will be hashed automatically
       status: 'ACTIVE',
       balance: {
         available: 10000.00,
