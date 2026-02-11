@@ -19,11 +19,17 @@ import { getMerchantProfile, updateMerchantProfile, changePassword } from '@/ser
 
 // Local avatars removed - using shared constants
 
+import { RoleGuard } from '@/components/guards/RoleGuard';
+
+// ... imports
+
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div>Loading settings...</div>}>
-      <SettingsContent />
-    </Suspense>
+    <RoleGuard allowedRoles={['ADMIN']}>
+      <Suspense fallback={<div>Loading settings...</div>}>
+        <SettingsContent />
+      </Suspense>
+    </RoleGuard>
   );
 }
 

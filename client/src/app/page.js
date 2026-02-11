@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { isAdmin } from '@/services/authService';
 import { getDashboardOverview, getRecentActivity, syncBalance } from '@/services/dashboardService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -13,6 +15,7 @@ import { ReportDialog } from '@/components/dashboard/ReportDialog';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [balance, setBalance] = useState({ available: 0, pending: 0, total: 0 });
   const [todayStats, setTodayStats] = useState({ amount: 0, count: 0 });
   const [pendingCount, setPendingCount] = useState(0);
@@ -20,6 +23,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+
+  // Redirect non-admin users to payouts
+  useEffect(() => {
+    if (!isAdmin()) {
+      router.replace('/payouts');
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,6 +66,11 @@ export default function DashboardPage() {
       }
     };
     fetchData();
+
+    // Auto-refresh every 5 minutes
+    const intervalId = setInterval(fetchData, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleSyncBalance = async () => {

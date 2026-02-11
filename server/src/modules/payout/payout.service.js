@@ -9,7 +9,7 @@ class PayoutService {
   /**
    * Create new payout
    */
-  async createPayout(merchantId, merchantNo, data) {
+  async createPayout(merchantId, merchantNo, data, userId) {
     // Get or Create beneficiary
     let beneficiary;
 
@@ -94,6 +94,7 @@ class PayoutService {
       const payout = await Payout.create({
         merchant_id: merchantId,
         merchant_no: merchantNo,
+        created_by: userId, // Link to user
         beneficiary_id: beneficiary._id,
         silkpay_order_no: silkpayResponse.external_id || outTradeNo,
         out_trade_no: outTradeNo,
@@ -111,7 +112,8 @@ class PayoutService {
         silkpay_response: silkpayResponse.raw,
         failure_reason: silkpayResponse.status === 'FAILED' ? silkpayResponse.message : undefined,
         purpose: data.purpose,
-        notes: data.notes
+        notes: data.notes,
+        source: data.source || (data.beneficiary_id ? 'SAVED' : 'ONE_TIME')
       });
 
       // Deduct from available balance, add to pending
@@ -155,18 +157,45 @@ class PayoutService {
    * Get payouts with filters
    */
   async getPayouts(merchantId, filters = {}) {
-    const { status, beneficiary_id, search, page = 1, limit = 10 } = filters;
+    const { 
+      status, source, beneficiary_id, 
+      account_number, beneficiary_name, 
+      min_amount, max_amount, 
+      start_date, end_date,
+      search, page = 1, limit = 10 
+    } = filters;
     
     const query = { merchant_id: merchantId };
     
+    // Exact match filters
     if (status) query.status = status;
+    if (source) query.source = source; // Added source check (assuming source field exists in model, verified in page.js mapping)
     if (beneficiary_id) query.beneficiary_id = beneficiary_id;
     
+    // Pattern match filters
+    if (account_number) query['beneficiary_details.account_number'] = { $regex: account_number, $options: 'i' };
+    if (beneficiary_name) query['beneficiary_details.name'] = { $regex: beneficiary_name, $options: 'i' };
+    
+    // Range filters
+    if (min_amount || max_amount) {
+      query.amount = {};
+      if (min_amount) query.amount.$gte = parseFloat(min_amount);
+      if (max_amount) query.amount.$lte = parseFloat(max_amount);
+    }
+    
+    if (start_date || end_date) {
+      query.createdAt = {};
+      if (start_date) query.createdAt.$gte = new Date(start_date);
+      if (end_date)   query.createdAt.$lte = new Date(new Date(end_date).setHours(23, 59, 59, 999));
+    }
+    
+    // General Search
     if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
       query.$or = [
-        { out_trade_no: { $regex: search, $options: 'i' } },
-        { silkpay_order_no: { $regex: search, $options: 'i' } },
-        { 'beneficiary_details.name': { $regex: search, $options: 'i' } }
+        { out_trade_no: searchRegex },
+        { silkpay_order_no: searchRegex },
+        { 'beneficiary_details.name': searchRegex }
       ];
     }
     
@@ -174,6 +203,7 @@ class PayoutService {
     
     const [payouts, total] = await Promise.all([
       Payout.find(query)
+        .populate('created_by', 'name email username')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
@@ -199,7 +229,9 @@ class PayoutService {
     const payout = await Payout.findOne({
       _id: payoutId,
       merchant_id: merchantId
-    }).lean();
+    })
+      .populate('created_by', 'name email username')
+      .lean();
     
     if (!payout) {
       const error = new Error('Payout not found');
@@ -231,9 +263,10 @@ class PayoutService {
       const statusResponse = await silkpayService.queryPayout(payout.out_trade_no);
       
       // Update payout if status changed
-      if (statusResponse.data?.status && statusResponse.data.status !== payout.status) {
+      // FIX: Check statusResponse.status directly (not .data.status)
+      if (statusResponse.status && statusResponse.status !== payout.status) {
         payout.finalized_by = 'MANUAL'; // Since this is triggered manually via API
-        await this.updatePayoutStatus(payout, statusResponse.data.status, statusResponse);
+        await this.updatePayoutStatus(payout, statusResponse.status, statusResponse);
       }
 
       return await Payout.findById(payoutId).lean();
@@ -255,6 +288,13 @@ class PayoutService {
     
     payout.status = newStatus;
     payout.silkpay_response = responseData;
+
+    // Capture UTR if available (from webhook root or query data object)
+    if (responseData.utr) {
+      payout.utr = responseData.utr;
+    } else if (responseData.data?.utr) {
+      payout.utr = responseData.data.utr;
+    }
 
     if (newStatus === 'SUCCESS') {
       payout.completed_at = new Date(); // Strict Finality Timestamp
@@ -278,7 +318,9 @@ class PayoutService {
       });
     } else if (newStatus === 'FAILED' || newStatus === 'REVERSED') {
       payout.completed_at = new Date();
-      payout.failure_reason = responseData.message || 'Payout failed';
+      // Extract specific failure reason from SilkPay response structure
+      // Priority: data.message (e.g. "Bank declined") -> message (e.g. "success") -> Default
+      payout.failure_reason = responseData.data?.message || responseData.message || 'Payout failed';
 
       // Refund to available balance
       const merchant = await Merchant.findById(payout.merchant_id);

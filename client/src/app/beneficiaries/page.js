@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { isAdmin } from '@/services/authService';
+import { api } from '@/services/api';
 import { getBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary } from '@/services/beneficiaryService';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/ui/data-table';
@@ -44,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function BeneficiariesPage() {
+  const userIsAdmin = isAdmin();
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
@@ -306,9 +309,11 @@ export default function BeneficiariesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-3xl font-bold tracking-tight">Beneficiaries</h2>
         <div className="flex gap-4">
-             <Button onClick={handleExport} variant="outline" className="gap-2">
-                <Download className="h-4 w-4" /> Export CSV
-            </Button>
+             {userIsAdmin && (
+               <Button onClick={handleExport} variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+               </Button>
+             )}
             <Button onClick={() => { setEditingBeneficiary(null); setOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" /> Add Beneficiary
             </Button>

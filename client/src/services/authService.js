@@ -26,10 +26,16 @@ export const login = async (email, password) => {
 
   // Store auth data
   if (typeof window !== 'undefined') {
-    localStorage.setItem('authToken', data.data.token);
-    localStorage.setItem('merchantInfo', JSON.stringify(data.data.merchant));
+    if (data.data.token) {
+      localStorage.setItem('authToken', data.data.token); // Keep original key for consistency with other functions
+      if (data.data.user) { // Assuming 'user' is now returned instead of 'merchant'
+        localStorage.setItem('user', JSON.stringify(data.data.user));
+        // Also store role separately for quick access
+        localStorage.setItem('role', data.data.user.role);
+      }
+    }
   }
-
+  
   return data.data;
 };
 
@@ -39,7 +45,8 @@ export const login = async (email, password) => {
 export const logout = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('authToken');
-    localStorage.removeItem('merchantInfo');
+    localStorage.removeItem('user');
+    localStorage.removeItem('role');
   }
 };
 
@@ -96,11 +103,29 @@ export const isAuthenticated = () => {
 };
 
 /**
- * Get current merchant info from localStorage
+ * Get current user info from localStorage
  * @returns {Object|null}
  */
-export const getCurrentMerchant = () => {
+export const getCurrentUser = () => {
   if (typeof window === 'undefined') return null;
-  const merchantInfo = localStorage.getItem('merchantInfo');
-  return merchantInfo ? JSON.parse(merchantInfo) : null;
+  const userStr = localStorage.getItem('user');
+  return userStr ? JSON.parse(userStr) : null;
+};
+
+/**
+ * Get current user role from localStorage
+ * @returns {string|null}
+ */
+export const getUserRole = () => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('role') || null;
+};
+
+/**
+ * Check if the current user has an ADMIN role
+ * @returns {boolean}
+ */
+export const isAdmin = () => {
+  if (typeof window === 'undefined') return false;
+  return getUserRole() === 'ADMIN';
 };

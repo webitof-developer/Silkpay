@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog"
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
+import { isAdmin } from '@/services/authService';
 
 export function Header() {
   const pathname = usePathname();
@@ -48,17 +49,21 @@ export function Header() {
 
   const [userProfile, setUserProfile] = useState(DEFAULT_USER_PROFILE);
 
+  const [isAdminUser, setIsAdminUser] = useState(false);
+
   // Sync with API on mount and listen for updates
   useEffect(() => {
+     setIsAdminUser(isAdmin());
+
      const fetchProfile = async () => {
          try {
-             // Use the correct endpoint that exists on backend
-             const profileRes = await api.get('/merchant/profile');
+             // Use /auth/me to get current user's info (not merchant info)
+             const profileRes = await api.get('/auth/me');
              if (profileRes.data) {
                  setUserProfile(prev => ({ 
                      ...prev, 
                      name: profileRes.data.name || prev.name,
-                     username: profileRes.data.username || prev.username, // Add username
+                     username: profileRes.data.username || prev.username,
                      email: profileRes.data.email || prev.email,
                      avatar: profileRes.data.avatar || prev.avatar
                  }));
@@ -69,11 +74,13 @@ export function Header() {
      };
 
      fetchProfile();
-
+     // ... existing event listener
      const handleSettingsUpdate = (e) => {
          const newSettings = e.detail;
          setUserProfile(prev => ({
              ...prev,
+             name: newSettings?.name || prev.name,
+             email: newSettings?.email || prev.email,
              avatar: newSettings?.avatar || prev.avatar,
              username: newSettings?.username || prev.username
          }));
@@ -82,6 +89,10 @@ export function Header() {
      window.addEventListener('settings-updated', handleSettingsUpdate);
      return () => window.removeEventListener('settings-updated', handleSettingsUpdate);
   }, []);
+
+  // ... (breadcrumbs logic)
+
+
 
   // Generate breadcrumbs from pathname
   const generateBreadcrumbs = () => {
@@ -98,6 +109,7 @@ export function Header() {
     };
 
     if (paths.length === 0) {
+      if (!isAdminUser) return null; // Don't show Dashboard for non-admins on root
       return (
          <BreadcrumbItem>
            <BreadcrumbPage>Dashboard</BreadcrumbPage>
@@ -107,10 +119,14 @@ export function Header() {
 
     return (
        <>
-         <BreadcrumbItem>
-            <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
-         </BreadcrumbItem>
-         <BreadcrumbSeparator />
+         {isAdminUser && (
+           <>
+             <BreadcrumbItem>
+                <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+             </BreadcrumbItem>
+             <BreadcrumbSeparator />
+           </>
+         )}
          {paths.map((path, index) => {
            const href = `/${paths.slice(0, index + 1).join('/')}`;
            const isLast = index === paths.length - 1;
@@ -190,7 +206,9 @@ export function Header() {
             <DropdownMenuItem onClick={() => setShowProfileDialog(true)}>
                 Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.location.href = '/settings'}>Settings</DropdownMenuItem>
+            {isAdminUser && (
+              <DropdownMenuItem onClick={() => window.location.href = '/settings'}>Settings</DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setShowLogoutDialog(true)} className="text-red-500 hover:text-red-500 focus:text-red-500 cursor-pointer">
                 Log out
@@ -239,18 +257,27 @@ export function Header() {
                     </div>
 
                     <div className="w-full grid grid-cols-2 gap-2 mt-2">
-                        <Button variant="outline" className="w-full" onClick={() => {
-                            setShowProfileDialog(false);
-                            router.push('/settings');
-                        }}>
-                            Edit Profile
-                        </Button>
-                        <Button variant="outline" className="w-full" onClick={() => {
-                            setShowProfileDialog(false);
-                            router.push('/settings?section=change-password');
-                        }}>
-                            Change Password
-                        </Button>
+                        {isAdminUser && (
+                          <>
+                            <Button variant="outline" className="w-full" onClick={() => {
+                                setShowProfileDialog(false);
+                                router.push('/settings');
+                            }}>
+                                Edit Profile
+                            </Button>
+                            <Button variant="outline" className="w-full" onClick={() => {
+                                setShowProfileDialog(false);
+                                router.push('/settings?section=change-password');
+                            }}>
+                                Change Password
+                            </Button>
+                          </>
+                        )}
+                        {!isAdminUser && (
+                           <div className="col-span-2 text-center text-sm text-muted-foreground italic py-2">
+                               Contact administrator to modify profile
+                           </div>
+                        )}
                     </div>
                 </div>
                 <DialogFooter className="sm:justify-center">

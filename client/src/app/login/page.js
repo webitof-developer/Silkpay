@@ -66,7 +66,7 @@ function LoginForm() {
       const response = await login(data.email, data.password);
       
       toast.success("Login Successful", {
-        description: `Welcome back, ${response.merchant.name || 'to SilkPay'}`
+        description: `Welcome back, ${response.user?.name || 'to SilkPay'}`
       });
       
       router.push('/');

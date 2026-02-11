@@ -1,12 +1,18 @@
 const transactionService = require('./transaction.service');
 
+// Helper to get merchant ID safely
+const getMerchantId = (user) => {
+  if (!user.merchant_id) return null;
+  return user.merchant_id._id || user.merchant_id;
+};
+
 /**
  * Get all transactions
  * GET /api/transactions
  */
 exports.getTransactions = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const filters = {
       type: req.query.type,
       payout_id: req.query.payout_id,
@@ -34,7 +40,7 @@ exports.getTransactions = async (req, res, next) => {
  */
 exports.getTransactionById = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const transactionId = req.params.id;
     
     const transaction = await transactionService.getTransactionById(transactionId, merchantId);
@@ -54,7 +60,8 @@ exports.getTransactionById = async (req, res, next) => {
  */
 exports.exportTransactions = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    // req.user is now User object with merchant_id
+    const merchantId = req.user.merchant_id;
     const filters = {
       type: req.query.type,
       start_date: req.query.start_date,
@@ -64,7 +71,7 @@ exports.exportTransactions = async (req, res, next) => {
     const csv = await transactionService.exportTransactions(merchantId, filters);
     
     // Set CSV headers
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=transactions_${Date.now()}.csv`);
     
     res.send(csv);
@@ -79,7 +86,7 @@ exports.exportTransactions = async (req, res, next) => {
  */
 exports.getTransactionStats = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const filters = {
       start_date: req.query.start_date,
       end_date: req.query.end_date

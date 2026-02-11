@@ -99,7 +99,7 @@ class SilkPayService {
       upi: payoutData.upi || '',
       bankNo: payoutData.account_number,
       ifsc: payoutData.ifsc_code,
-      name: payoutData.beneficiary_name
+      name: payoutData.beneficiary_name // Maps to 'name' in API
     };
 
     params.sign = generateSignature(params, 'payout');
@@ -113,7 +113,7 @@ class SilkPayService {
         status: response.data.status, 
         payOrderId: response.data.data?.payOrderId,
         message: response.data.message,
-        raw: response.data
+        raw: JSON.stringify(response.data) // Serialize for clean logging
       });
 
       // Normalize Response
@@ -157,6 +157,7 @@ class SilkPayService {
           status: normalizedStatus,
           external_id: response.data.data?.payOrderId,
           amount: response.data.data?.amount,
+          utr: response.data.data?.utr, // Added explicit UTR extraction
           raw: response.data
       };
 
@@ -209,6 +210,7 @@ class SilkPayService {
       return {
           available: parseFloat(response.data.data?.availableAmount || 0),
           pending: parseFloat(response.data.data?.pendingAmount || 0),
+          total: parseFloat(response.data.data?.totalAmount || 0), // Added total parsing
           raw: response.data
       };
 
@@ -228,9 +230,9 @@ class SilkPayService {
     logger.error(`SilkPay ${context} Error`, {
       message: errorMsg,
       status: statusCode,
-      data: error.response?.data
+      data: JSON.stringify(data)
     });
-
+  
     const customError = new Error(`SilkPay ${context} Failed: ${errorMsg}`);
     customError.statusCode = statusCode;
     customError.response = error.response?.data;

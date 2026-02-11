@@ -48,7 +48,7 @@ SilkPay Payout Platform enables businesses to:
 - 💸 **Payout Processing** - One-time & recurring payouts via SilkPay API
 - 📊 **Real-time Dashboard** - Balance overview, metrics, charts
 - 📜 **Transaction Ledger** - Complete audit trail with CSV export
-- 🔔 **Webhook Integration** - Automatic status updates
+- 🔔 **Webhook Integration** - Automatic status updates (Push) & Manual Sync (Pull)
 - ⚙️ **Merchant Settings** - API keys, IP whitelisting, profile management
 
 ### Technical Features

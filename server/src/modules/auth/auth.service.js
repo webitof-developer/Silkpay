@@ -1,39 +1,39 @@
 const jwt = require('jsonwebtoken');
-const Merchant = require('../merchant/merchant.model');
+const User = require('../user/user.model');
 const logger = require('../../shared/utils/logger');
 
 class AuthService {
   /**
    * Generate JWT token
    */
-  generateToken(merchantId) {
+  generateToken(userId, role) {
     return jwt.sign(
-      { id: merchantId },
+      { id: userId, role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRY || '30m' }
     );
   }
 
   /**
-   * Login merchant
+   * Login user
    */
   async login(identifier, password) {
     // Check if identifier looks like an email
     const isEmail = identifier.includes('@');
-    const query = isEmail ? { email: identifier } : { username: identifier }; // Strict case match for username
+    const query = isEmail ? { email: identifier } : { username: identifier };
 
-    // Find merchant with password field
-    const merchant = await Merchant.findOne(query).select('+password');
+    // Find user with password field
+    const user = await User.findOne(query).select('+password').populate('merchant_id');
     
-    if (!merchant) {
+    if (!user) {
       const error = new Error('Invalid email or password');
       error.statusCode = 401;
       error.code = 'INVALID_CREDENTIALS';
       throw error;
     }
 
-    // Check if merchant is active
-    if (merchant.status !== 'ACTIVE') {
+    // Check if user is active
+    if (user.status !== 'ACTIVE') {
       const error = new Error('Account is inactive. Please contact support');
       error.statusCode = 403;
       error.code = 'ACCOUNT_INACTIVE';
@@ -41,7 +41,7 @@ class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await merchant.comparePassword(password);
+    const isPasswordValid = await user.comparePassword(password);
     
     if (!isPasswordValid) {
       const error = new Error('Invalid email or password');
@@ -50,38 +50,41 @@ class AuthService {
       throw error;
     }
 
-    // Generate token
-    const token = this.generateToken(merchant._id);
+    // Generate token with role
+    const token = this.generateToken(user._id, user.role);
 
-    logger.info(`Merchant logged in: ${merchant.email}`);
+    logger.info(`User logged in: ${user.email} (${user.role})`);
 
     return {
       token,
-      merchant: {
-        id: merchant._id,
-        merchant_no: merchant.merchant_no,
-        name: merchant.name,
-        email: merchant.email,
-        mobile: merchant.mobile,
-        status: merchant.status
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        merchant_id: user.merchant_id._id,
+        merchant_no: user.merchant_id.merchant_no
       }
     };
   }
 
   /**
-   * Get merchant by ID (for auth middleware)
+   * Get user by ID (for auth middleware)
    */
-  async getMerchantById(merchantId) {
-    const merchant = await Merchant.findById(merchantId);
+  async getUserById(userId) {
+    const user = await User.findById(userId)
+      .populate('merchant_id', 'merchant_no name email')
+      .select('-password');
     
-    if (!merchant) {
-      const error = new Error('Merchant not found');
+    if (!user) {
+      const error = new Error('User not found');
       error.statusCode = 404;
-      error.code = 'MERCHANT_NOT_FOUND';
+      error.code = 'USER_NOT_FOUND';
       throw error;
     }
 
-    return merchant;
+    return user;
   }
 
   /**

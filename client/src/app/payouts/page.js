@@ -234,6 +234,20 @@ export default function PayoutsPage() {
         ),
       },
       {
+        accessorKey: "created_by",
+        header: "Created By",
+        cell: ({ row }) => {
+          const createdBy = row.getValue("created_by");
+          if (!createdBy || !createdBy.name) return <span className="text-xs text-muted-foreground">—</span>;
+          return (
+            <div className="text-xs">
+              <div className="font-medium">{createdBy.name}</div>
+              <div className="text-muted-foreground text-[10px]">{createdBy.email}</div>
+            </div>
+          );
+        }
+      },
+      {
         id: "actions",
         header: "Operate",
         cell: ({ row }) => {
@@ -359,28 +373,13 @@ export default function PayoutsPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">All Status</SelectItem>
-                            <SelectItem value="PENDING">Pending</SelectItem>
                             <SelectItem value="PROCESSING">Processing</SelectItem>
                             <SelectItem value="SUCCESS">Success</SelectItem>
                             <SelectItem value="FAILED">Failed</SelectItem>
-                            <SelectItem value="REVERSED">Reversed</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
 
-                {/* Source Filter */}
-                <div className="w-full sm:w-[150px]">
-                     <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Source" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">All Sources</SelectItem>
-                            <SelectItem value="SAVED">Saved Beneficiary</SelectItem>
-                            <SelectItem value="ONE_TIME">One-Time</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
 
                 {/* Date Filter */}
                 <Popover>
@@ -430,7 +429,7 @@ export default function PayoutsPage() {
                  <Input 
                      type="number" 
                      placeholder="Min" 
-                     className="w-full sm:w-[120px]" 
+                     className="w-full sm:w-[120px] [color-scheme:dark]" 
                      value={minAmount}
                      onChange={(e) => setMinAmount(e.target.value)}
                  />
@@ -438,7 +437,7 @@ export default function PayoutsPage() {
                  <Input 
                      type="number" 
                      placeholder="Max" 
-                     className="w-full sm:w-[120px]" 
+                     className="w-full sm:w-[120px] [color-scheme:dark]" 
                      value={maxAmount}
                      onChange={(e) => setMaxAmount(e.target.value)}
                  />

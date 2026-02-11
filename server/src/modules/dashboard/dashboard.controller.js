@@ -1,12 +1,18 @@
 const dashboardService = require('./dashboard.service');
 
+// Helper to get merchant ID safely
+const getMerchantId = (user) => {
+  if (!user.merchant_id) return null;
+  return user.merchant_id._id || user.merchant_id;
+};
+
 /**
  * Get dashboard overview
  * GET /api/dashboard/overview
  */
 exports.getOverview = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const overview = await dashboardService.getOverview(merchantId);
     
     res.json({
@@ -24,7 +30,7 @@ exports.getOverview = async (req, res, next) => {
  */
 exports.getPayoutTrends = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const days = parseInt(req.query.days) || 30;
     
     const trends = await dashboardService.getPayoutTrends(merchantId, days);
@@ -44,7 +50,7 @@ exports.getPayoutTrends = async (req, res, next) => {
  */
 exports.getTopBeneficiaries = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const limit = parseInt(req.query.limit) || 5;
     
     const topBeneficiaries = await dashboardService.getTopBeneficiaries(merchantId, limit);
@@ -64,7 +70,7 @@ exports.getTopBeneficiaries = async (req, res, next) => {
  */
 exports.getRecentActivity = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    const merchantId = getMerchantId(req.user);
     const limit = parseInt(req.query.limit) || 10;
     
     const activity = await dashboardService.getRecentActivity(merchantId, limit);

@@ -26,11 +26,23 @@ const authMiddleware = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get merchant from database
-    const merchant = await authService.getMerchantById(decoded.id);
+      // Get user details
+      const user = await authService.getUserById(decoded.id);
 
-    // Attach merchant to request
-    req.user = merchant;
+      // Validate role
+      if (!['ADMIN', 'USER'].includes(user.role)) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'INVALID_ROLE',
+            message: 'Invalid user role'
+          }
+        });
+      }
+
+      // Attach user to request object
+      // Convert to plain object to avoid Mongoose document issues (like stringification of populated fields)
+      req.user = user.toObject();
     
     next();
   } catch (error) {

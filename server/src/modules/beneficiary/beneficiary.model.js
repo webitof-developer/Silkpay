@@ -13,6 +13,12 @@ const BeneficiarySchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  created_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false, // Optional for migration compatibility
+    index: true
+  },
   name: {
     type: String,
     required: true,

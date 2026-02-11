@@ -37,13 +37,13 @@ export const createPayout = async (payoutData) => {
 
 /**
  * Query payout status from SilkPay
- * @param {string} payOrderId - SilkPay order ID
+ * @param {string} payoutId - Internal payout ID (_id)
  * @returns {Promise<Object>}
  */
-export const queryPayoutStatus = async (payOrderId) => {
-  const response = await api.post('/payouts/query', { payOrderId });
-  console.log(response.data);
-  return response.data;
+export const queryPayoutStatus = async (payoutId) => {
+  const response = await api.get(`/payouts/${payoutId}/status`);
+  console.log(response);
+  return response; // Return full response with success flag
 };
 
 /**

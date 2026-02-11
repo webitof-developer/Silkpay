@@ -11,7 +11,17 @@ import { Badge } from '@/components/ui/badge';
 import { Eye, EyeOff, Copy, RefreshCw, Plus, Trash2, CheckCircle2, Server, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { RoleGuard } from '@/components/guards/RoleGuard';
+
 export default function MerchantPage() {
+  return (
+    <RoleGuard allowedRoles={['ADMIN']}>
+      <MerchantPageContent />
+    </RoleGuard>
+  );
+}
+
+function MerchantPageContent() {
   const [profile, setProfile] = useState(null);
   const [apiKeys, setApiKeys] = useState(null);
   const [loading, setLoading] = useState(true);

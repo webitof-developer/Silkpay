@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -8,7 +9,7 @@ import {
   ArrowRightLeft,
   Send,
   Users,
-  Landmark,
+  UserCog,
   Store,
   Settings,
   Menu,
@@ -19,15 +20,16 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { isAdmin } from '@/services/authService';
 
 export const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/transactions', label: 'Transactions', icon: ArrowRightLeft },
-  { href: '/payouts', label: 'Payouts', icon: Send },
-  { href: '/beneficiaries', label: 'Beneficiaries', icon: Users },
-  { href: '/bank-account', label: 'Bank Account', icon: Landmark },
-  { href: '/merchant', label: 'Merchant Center', icon: Store },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
+  { href: '/transactions', label: 'Transactions', icon: ArrowRightLeft, adminOnly: false },
+  { href: '/payouts', label: 'Payouts', icon: Send, adminOnly: false },
+  { href: '/beneficiaries', label: 'Beneficiaries', icon: Users, adminOnly: false },
+  { href: '/users', label: 'User Management', icon: UserCog, adminOnly: true },
+  { href: '/merchant', label: 'Merchant Center', icon: Store, adminOnly: true },
+  { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -53,10 +55,24 @@ export function Sidebar() {
 }
 
 export function NavContent({ pathname }) {
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setUserIsAdmin(isAdmin());
+  }, []);
+
+  // Filter nav items based on user role
+  const filteredNavItems = navItems.filter(item => {
+    if (item.adminOnly && !userIsAdmin) {
+      return false; // Hide admin-only items from non-admins
+    }
+    return true;
+  });
+
   return (
     <nav className="flex-1 overflow-y-auto py-4">
       <ul className="space-y-3 px-3">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (
             <li key={item.href} className='mb-1.5'>

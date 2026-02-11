@@ -6,7 +6,8 @@ const balanceService = require('./balance.service');
  */
 exports.getBalance = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    // req.user is now a User object with merchant_id
+    const merchantId = req.user.merchant_id;
     const balance = await balanceService.getBalance(merchantId);
     
     res.json({
@@ -24,7 +25,8 @@ exports.getBalance = async (req, res, next) => {
  */
 exports.syncBalance = async (req, res, next) => {
   try {
-    const merchantId = req.user._id;
+    // req.user is now a User object with merchant_id
+    const merchantId = req.user.merchant_id;
     const balance = await balanceService.syncBalance(merchantId);
     
     res.json({

@@ -38,23 +38,24 @@ exports.logout = async (req, res, next) => {
 };
 
 /**
- * Get current merchant profile
+ * Get current user profile
  * GET /api/auth/me
  */
 exports.getMe = async (req, res, next) => {
   try {
-    const merchant = req.user; // Set by auth middleware
+    const user = req.user; // Set by auth middleware
 
     res.json({
       success: true,
       data: {
-        id: merchant._id,
-        merchant_no: merchant.merchant_no,
-        name: merchant.name,
-        email: merchant.email,
-        mobile: merchant.mobile,
-        status: merchant.status,
-        balance: merchant.balance
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        avatar: user.avatar,
+        merchant_id: user.merchant_id,
+        status: user.status
       }
     });
   } catch (error) {

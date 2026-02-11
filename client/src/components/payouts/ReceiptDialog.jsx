@@ -87,7 +87,7 @@ export function ReceiptDialog({ open, onOpenChange, transaction }) {
                 
                 <div className="space-y-1">
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Beneficiary</div>
-                    <div className="font-medium text-foreground uppercase tracking-tight truncate">{transaction.beneficiary_name}</div>
+                    <div className="font-medium text-foreground uppercase tracking-tight break-words">{transaction.beneficiary_name}</div>
                 </div>
                 <div className="text-right space-y-1">
                     <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Amount</div>

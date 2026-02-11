@@ -6,18 +6,19 @@ const {
   validateChangePassword 
 } = require('./merchant.validator');
 const authMiddleware = require('../../shared/middleware/auth');
+const { requireRole } = require('../../shared/middleware/rbac');
 
 // All routes require authentication
 router.use(authMiddleware);
 
-// Profile management
-router.get('/profile', merchantController.getProfile);
-router.put('/profile', validateUpdateProfile, merchantController.updateProfile);
+// All merchant management routes require ADMIN role
+router.get('/profile', requireRole('ADMIN'), merchantController.getProfile);
+router.put('/profile', requireRole('ADMIN'), validateUpdateProfile, merchantController.updateProfile);
 
-// API Keys
-router.get('/api-keys', merchantController.getAPIKeys);
+// API Keys - ADMIN only
+router.get('/api-keys', requireRole('ADMIN'), merchantController.getAPIKeys);
 
-// Password
-router.post('/change-password', validateChangePassword, merchantController.changePassword);
+// Password - ADMIN only (merchant password, not user password)
+router.post('/change-password', requireRole('ADMIN'), validateChangePassword, merchantController.changePassword);
 
 module.exports = router;

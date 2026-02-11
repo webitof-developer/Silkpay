@@ -12,6 +12,12 @@ const PayoutSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  created_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false, // Optional for migration compatibility
+    index: true
+  },
   beneficiary_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Beneficiary',
@@ -29,6 +35,16 @@ const PayoutSchema = new mongoose.Schema({
     type: String, // Our internal reference
     required: true,
     unique: true,
+    index: true
+  },
+  source: {
+    type: String,
+    enum: ['SAVED', 'ONE_TIME', 'UNKNOWN'],
+    default: 'SAVED',
+    index: true
+  },
+  utr: {
+    type: String,
     index: true
   },
   // Payout Details

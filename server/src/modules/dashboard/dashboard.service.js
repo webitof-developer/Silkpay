@@ -10,6 +10,12 @@ class DashboardService {
   async getOverview(merchantId) {
     const merchant = await Merchant.findById(merchantId);
     
+    if (!merchant) {
+      // Handle case where merchant doesn't exist yet
+      // This can happen during initial setup or if merchant was deleted
+      console.warn(`Merchant not found: ${merchantId}`);
+    }
+    
     // Get counts
     const [totalPayouts, totalBeneficiaries, pendingPayouts] = await Promise.all([
       Payout.countDocuments({ merchant_id: merchantId }),
@@ -53,11 +59,11 @@ class DashboardService {
     const todayTotal = todayStats.length > 0 ? todayStats[0].total_amount : 0;
     const todayCount = todayStats.length > 0 ? todayStats[0].count : 0;
 
-    // Convert merchant to object to ensure getters (Decimal128 -> Number) are applied
-    const merchantObj = merchant.toObject({ getters: true });
+    // Get balance from merchant or default to 0
+    const balance = merchant ? (merchant.toObject ? merchant.toObject({ getters: true }).balance : merchant.balance) : 0;
 
     const stats = {
-      balance: merchantObj.balance,
+      balance: balance || 0,
       total_payouts: totalPayouts,
       total_beneficiaries: totalBeneficiaries,
       pending_payouts: pendingPayouts,

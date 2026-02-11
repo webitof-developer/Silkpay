@@ -142,6 +142,7 @@ app.use('/api/transactions', require('./modules/transaction').routes);
 app.use('/api/dashboard', require('./modules/dashboard').routes);
 app.use('/api/balance', require('./modules/balance').routes);
 app.use('/api/webhook', require('./modules/webhook').routes);
+app.use('/api/users', require('./modules/user').routes);
 
 // 404 Handler
 app.use((req, res) => {

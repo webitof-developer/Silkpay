@@ -39,7 +39,7 @@ class MerchantService {
   /**
    * Update merchant profile
    */
-  async updateProfile(merchantId, updates) {
+  async updateProfile(merchantId, updates, userId) {
     const merchant = await Merchant.findById(merchantId);
     
     if (!merchant) {
@@ -56,6 +56,23 @@ class MerchantService {
     if (updates.avatar !== undefined) merchant.avatar = updates.avatar;
     
     await merchant.save();
+
+    // Sync with User model if userId provided
+    if (userId && (updates.name || updates.username)) {
+      try {
+        const User = require('../user/user.model');
+        const userUpdates = {};
+        if (updates.name) userUpdates.name = updates.name;
+        if (updates.username) userUpdates.username = updates.username;
+        if (updates.avatar !== undefined) userUpdates.avatar = updates.avatar;
+        
+        await User.findByIdAndUpdate(userId, userUpdates);
+        logger.info(`Synced merchant profile update to User ${userId}`);
+      } catch (err) {
+        logger.error(`Failed to sync merchant profile to User: ${err.message}`);
+        // Don't throw, as merchant update succeeded
+      }
+    }
     
     logger.info(`Merchant profile updated: ${merchant.merchant_no}`);
     

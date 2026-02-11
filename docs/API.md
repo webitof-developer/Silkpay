@@ -260,3 +260,98 @@ Get aggregated metrics.
 
 ### CORS
 - Strict origin validation against `CORS_ORIGINS` env var.
+
+---
+
+## Webhooks
+
+### POST `/webhook/silkpay`
+
+**SilkPay Callback Endpoint** - Receives asynchronous status notifications from SilkPay.
+
+**Important:** This endpoint does NOT require authentication (webhook from external service).
+
+**Incoming Request from SilkPay:**
+
+```json
+{
+  "mOrderId": "F7064_1770726907313_8199",
+  "status": 2,
+  "utr": "112233445566",
+  "amount": "100.00",
+  "payOrderId": "DF-0207173510390431811270665",
+  "sign": "80f7eb17fec33a6b7963fc113484642a",
+  "timestamp": 1687244719629
+}
+```
+
+**Status Codes:**
+- `2` = SUCCESS (Payment successful) ✅
+- `3` = FAILED (Payment failed) ❌
+
+**🚨 CRITICAL:** Webhook ONLY sends final states (2 or 3). You will NEVER receive a webhook for:
+- `0` = INITIAL
+- `1` = PROCESSING
+
+**Your Response (Required):**
+```
+OK
+```
+
+**Signature Verification:**
+```javascript
+// Format: md5(mId+mOrderId+amount+timestamp+secretKey)
+const expectedSign = md5(`${mId}${mOrderId}${amount}${timestamp}${secretKey}`);
+if (sign !== expectedSign) {
+  return 400; // Invalid signature
+}
+```
+
+**Retry Logic:**
+- If "OK" not returned, SilkPay retries every 5 minutes
+- Maximum 5 retry attempts
+
+---
+
+### GET `/payouts/:id/status`
+
+**Manual Status Query** - Check payout status on-demand.
+
+**Authentication:** Required (Bearer token)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "67a23f042402526337818625",
+    "out_trade_no": "F7064_1770726907313_8199",
+    "status": "PROCESSING",
+    "amount": 100.00,
+    "utr": null,
+    "external_id": "DF-0207173510390431811270665",
+    ...
+  }
+}
+```
+
+**Status Values (from SilkPay query API):**
+- `0` → `INITIAL` (Just created)
+- `1` → `PROCESSING` (In progress)
+- `2` → `SUCCESS` (Completed) ✅
+- `3` → `FAILED` ❌
+
+**Use Case:** Click "Sync" button to manually check status, especially useful for checking PROCESSING state since webhook doesn't send it.
+
+---
+
+## Error Codes
+
+**HTTP Status Codes:**
+- `200` - Success
+- `400` - Bad request / Validation error
+- `401` - Unauthorized (invalid token)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Resource not found
+- `429` - Too many requests (rate limited)
+- `500` - Internal server error

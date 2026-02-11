@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { isAdmin } from '@/services/authService';
 import { getTransactions } from '@/services/transactionService';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ const safeFormatCurrency = (val) => {
 };
 
 export default function TransactionsPage() {
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
@@ -74,6 +76,11 @@ export default function TransactionsPage() {
     return () => { cancelled = true; };
   }, [queryParams]);
 
+  useEffect(() => {
+    // Avoid SSR/client mismatch by resolving admin state on the client only.
+    setUserIsAdmin(isAdmin());
+  }, []);
+
   const resetFilters = () => {
       setPage(1);
       setSearch('');
@@ -99,6 +106,7 @@ export default function TransactionsPage() {
       ],
       'transactions_export'
     );
+    toast.success('Transactions exported');
   };
 
   const columns = [
@@ -148,9 +156,11 @@ export default function TransactionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Transactions</h2>
-        <Button onClick={handleExport} variant="outline" className="gap-2">
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
+        {userIsAdmin && (
+          <Button onClick={handleExport} variant="outline" className="gap-2">
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
