@@ -57,7 +57,7 @@ function LoginForm() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: 'test@silkpay.local',
-      password: 'password123',
+      password: '***',
     },
   });
 
