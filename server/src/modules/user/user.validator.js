@@ -23,7 +23,7 @@ exports.validateCreateUser = (req, res, next) => {
     merchant_id: Joi.string().required().messages({
       'any.required': 'Merchant ID is required'
     }),
-    username: Joi.string().trim().alphanum().max(30).optional().messages({
+    username: Joi.string().trim().alphanum().min(3).max(30).optional().messages({
       'string.alphanum': 'Username must only contain alpha-numeric characters',
       'string.min': 'Username must be at least 3 characters',
       'string.max': 'Username cannot exceed 30 characters'

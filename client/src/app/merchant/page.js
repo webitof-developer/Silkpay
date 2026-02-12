@@ -29,14 +29,14 @@ function MerchantPageContent() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("Fetching merchant data...");
+        // console.log("Fetching merchant data...");
         const [profileRes, apiRes] = await Promise.all([
           getMerchantProfile(),
           getApiKeys()
         ]);
         
-        console.log("Profile Res:", profileRes);
-        console.log("API Keys Res:", apiRes);
+        // console.log("Profile Res:", profileRes);
+        // console.log("API Keys Res:", apiRes);
 
         // Services return data directly
         if (profileRes) {

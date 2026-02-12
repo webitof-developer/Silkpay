@@ -45,8 +45,16 @@ export default function DashboardPage() {
            setBalance(dashboardRes.balance);
            setTodayStats(dashboardRes.today_payouts || { amount: 0, count: 0 });
            setPendingCount(dashboardRes.pending_payouts || 0);
-        }
 
+           // Auto-sync balance on first load of the session
+           const hasSynced = sessionStorage.getItem('balance_synced');
+           if (!hasSynced) {
+               console.log("Triggering auto-sync for balance...");
+               handleSyncBalance();
+               sessionStorage.setItem('balance_synced', 'true');
+           }
+        }
+        
         // Services return data directly
         if (activityRes) {
             const activities = activityRes.map(item => ({

@@ -343,18 +343,34 @@ function UserManagementContent() {
 
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select 
-                value={formData.role} 
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USER">User (Standard Access)</SelectItem>
-                  <SelectItem value="ADMIN">Admin (Full Access)</SelectItem>
-                </SelectContent>
-              </Select>
+              {(() => {
+                const currentUserId = currentUser?.id || currentUser?._id;
+                const editingUserId = editingUser?.id || editingUser?._id;
+                const isEditingSelf = editingUser && currentUserId && editingUserId && currentUserId === editingUserId;
+                
+                return (
+                  <>
+                    <Select 
+                      value={formData.role} 
+                      onValueChange={(value) => setFormData({ ...formData, role: value })}
+                      disabled={isEditingSelf}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USER">User (Standard Access)</SelectItem>
+                        <SelectItem value="ADMIN">Admin (Full Access)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isEditingSelf && (
+                      <p className="text-[0.8rem] text-muted-foreground">
+                          You cannot change your own role.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <DialogFooter>
