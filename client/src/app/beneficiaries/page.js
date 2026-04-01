@@ -111,7 +111,7 @@ export default function BeneficiariesPage() {
                  account_number: values.account_number,
                  ifsc_code: values.ifsc_code,
                  bank_name: values.bank_name,
-                 upi_id: values.upi_id
+                 upi_id: values.upi_id?.trim() || undefined
              }
          };
 
@@ -141,7 +141,7 @@ export default function BeneficiariesPage() {
              bank_details: {
                  ifsc_code: values.ifsc_code,
                  bank_name: values.bank_name,
-                 upi_id: values.upi_id
+                 upi_id: values.upi_id?.trim() || undefined
              }
          };
 

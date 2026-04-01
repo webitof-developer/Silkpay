@@ -5,6 +5,12 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
+const redirectToServerUnavailable = () => {
+  if (typeof window !== 'undefined' && window.location.pathname !== '/server-unavailable') {
+    window.location.assign('/server-unavailable');
+  }
+};
+
 /**
  * Login with email and password
  * @param {string} email - User email
@@ -12,31 +18,38 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/a
  * @returns {Promise<{token: string, merchant: Object}>}
  */
 export const login = async (email, password) => {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
 
-  const data = await response.json();
-  
-  if (!response.ok || !data.success) {
-    throw new Error(data.error?.message || 'Login failed');
-  }
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error?.message || 'Login failed');
+    }
 
-  // Store auth data
-  if (typeof window !== 'undefined') {
-    if (data.data.token) {
-      localStorage.setItem('authToken', data.data.token); // Keep original key for consistency with other functions
-      if (data.data.user) { // Assuming 'user' is now returned instead of 'merchant'
-        localStorage.setItem('user', JSON.stringify(data.data.user));
-        // Also store role separately for quick access
-        localStorage.setItem('role', data.data.user.role);
+    // Store auth data
+    if (typeof window !== 'undefined') {
+      if (data.data.token) {
+        localStorage.setItem('authToken', data.data.token);
+        if (data.data.user) {
+          localStorage.setItem('user', JSON.stringify(data.data.user));
+          localStorage.setItem('role', data.data.user.role);
+        }
       }
     }
+    
+    return data.data;
+  } catch (error) {
+    if (error?.name === 'TypeError' || error?.message === 'Failed to fetch') {
+      redirectToServerUnavailable();
+      throw new Error('Unable to connect to server. Please check your internet connection.');
+    }
+    throw error;
   }
-  
-  return data.data;
 };
 
 /**
@@ -56,19 +69,27 @@ export const logout = () => {
  * @returns {Promise<Object>}
  */
 export const forgotPassword = async (email) => {
-  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
 
-  const data = await response.json();
-  
-  if (!response.ok || !data.success) {
-    throw new Error(data.error?.message || 'Password reset request failed');
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error?.message || 'Password reset request failed');
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.name === 'TypeError' || error?.message === 'Failed to fetch') {
+      redirectToServerUnavailable();
+      throw new Error('Unable to connect to server. Please check your internet connection.');
+    }
+    throw error;
   }
-
-  return data;
 };
 
 /**
@@ -78,19 +99,27 @@ export const forgotPassword = async (email) => {
  * @returns {Promise<Object>}
  */
 export const resetPassword = async (token, newPassword) => {
-  const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, password: newPassword })
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password: newPassword })
+    });
 
-  const data = await response.json();
-  
-  if (!response.ok || !data.success) {
-    throw new Error(data.error?.message || 'Password reset failed');
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error?.message || 'Password reset failed');
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.name === 'TypeError' || error?.message === 'Failed to fetch') {
+      redirectToServerUnavailable();
+      throw new Error('Unable to connect to server. Please check your internet connection.');
+    }
+    throw error;
   }
-
-  return data;
 };
 
 /**

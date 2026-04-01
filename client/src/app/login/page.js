@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Eye, EyeOff, KeyRound, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BrandWordmark } from '@/components/brand/BrandMark';
 import {
   Form,
   FormControl,
@@ -72,6 +74,17 @@ function LoginForm() {
       router.push('/');
     } catch (error) {
       console.error('Login error:', error);
+      const errorMessage = typeof error?.message === 'string' ? error.message : '';
+      const isConnectionError =
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('Unable to connect to server') ||
+        errorMessage.includes('NetworkError') ||
+        error.name === 'TypeError';
+
+      if (isConnectionError) {
+        router.push('/server-unavailable');
+        return;
+      }
       
       // Handle Field-Specific Validation Errors
       if (error.fields) {
@@ -83,13 +96,13 @@ function LoginForm() {
           });
       } else {
            // Handle specific auth errors
-           if (error.message.includes('Locked') || error.message.includes('attempts')) {
+           if (errorMessage.includes('Locked') || errorMessage.includes('attempts')) {
                toast.error("Account Locked", { description: "Too many failed attempts. Please try again later." });
-           } else if (error.message.includes('credentials')) {
+           } else if (errorMessage.includes('credentials')) {
                loginForm.setError('root', { message: "Invalid email or password" });
                toast.error("Invalid credentials");
            } else {
-               toast.error(error.message || "Login failed");
+               toast.error(errorMessage || "Login failed");
            }
       }
     }
@@ -119,7 +132,19 @@ function LoginForm() {
       }
     } catch (error) {
       console.error('Forgot password error:', error);
-      toast.error(error.message || "Failed to send reset link");
+      const errorMessage = typeof error?.message === 'string' ? error.message : '';
+      const isConnectionError =
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('Unable to connect to server') ||
+        errorMessage.includes('NetworkError') ||
+        error.name === 'TypeError';
+
+      if (isConnectionError) {
+        router.push('/server-unavailable');
+        return;
+      }
+
+      toast.error(errorMessage || "Failed to send reset link");
     }
   };
 
@@ -149,18 +174,13 @@ function LoginForm() {
     <div className="w-full max-w-sm z-10 relative">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-            <div className="flex items-center gap-2">
-                <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/40">
-                  S
-                </div>
-                <span className="text-2xl font-bold text-white tracking-wide">SilkPay</span>
-            </div>
+            <BrandWordmark iconClassName="h-10 w-10" textClassName="text-2xl" />
         </div>
 
         {/* Success message if coming from password reset */}
         {resetSuccess && (
           <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm text-center">
-            ✓ Password reset successful! Please login.
+            Password reset successful! Please login.
           </div>
         )}
 
@@ -253,7 +273,10 @@ function LoginForm() {
             </CardContent>
             <CardFooter className="flex flex-col gap-4 text-xs text-center text-muted-foreground pb-6">
                 <div className="text-muted-foreground">
-                    Don't have an account? <span className="text-primary cursor-pointer hover:underline">Contact Sales</span>
+                    Don't have an account?{' '}
+                    <Link href="/contact" className="text-primary hover:underline">
+                      Contact Sales
+                    </Link>
                 </div>
                 <div className="opacity-50">Protected by SilkPay Security</div>
             </CardFooter>

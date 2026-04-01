@@ -1,0 +1,6 @@
+# Gradle distribution cache (DO NOT commit — can be 100s of MB)
+.gradle/
+
+# OS
+.DS_Store
+Thumbs.db

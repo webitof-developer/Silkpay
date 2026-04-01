@@ -9,6 +9,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "SilkPay - Payout Platform",
   description: "Enterprise grade payout management platform",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 

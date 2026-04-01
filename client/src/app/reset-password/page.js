@@ -9,6 +9,12 @@ import { Label } from '@/components/ui/label';
 import { KeyRound, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const redirectToServerUnavailable = () => {
+  if (typeof window !== 'undefined' && window.location.pathname !== '/server-unavailable') {
+    window.location.assign('/server-unavailable');
+  }
+};
+
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +58,10 @@ function ResetPasswordForm() {
       }
     } catch (error) {
       console.error(error);
+      if (error?.name === 'TypeError' || error?.message === 'Failed to fetch') {
+        redirectToServerUnavailable();
+        return;
+      }
       toast.error("Failed to reset password");
     } finally {
       setLoading(false);

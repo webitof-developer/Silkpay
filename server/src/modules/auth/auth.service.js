@@ -19,8 +19,9 @@ class AuthService {
    */
   async login(identifier, password) {
     // Check if identifier looks like an email
-    const isEmail = identifier.includes('@');
-    const query = isEmail ? { email: identifier } : { username: identifier };
+    const safeIdentifier = typeof identifier === 'string' ? identifier : '';
+    const isEmail = safeIdentifier.includes('@');
+    const query = isEmail ? { email: safeIdentifier } : { username: safeIdentifier };
 
     // Find user with password field
     const user = await User.findOne(query).select('+password').populate('merchant_id');

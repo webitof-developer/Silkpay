@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SilkPay</string>
+    <string name="title_activity_main">SilkPay</string>
+    <string name="package_name">com.webitof.silkpay</string>
+    <string name="custom_url_scheme">com.webitof.silkpay</string>
+</resources>

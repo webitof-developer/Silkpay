@@ -11,6 +11,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/a
 // ==========================================
 const mockData = mockApiResponses;
 
+const redirectToServerUnavailable = () => {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/server-unavailable') {
+        window.location.assign('/server-unavailable');
+    }
+};
+
 // ==========================================
 // CLIENT IMPLEMENTATION (Fetch Wrapper)
 // ==========================================
@@ -120,6 +126,7 @@ const request = async (endpoint, { method = 'GET', body, params, ...customConfig
         
         // Smart Network Error Handling
         if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+             redirectToServerUnavailable();
              throw new Error("Unable to connect to server. Please check your internet connection.");
         }
         

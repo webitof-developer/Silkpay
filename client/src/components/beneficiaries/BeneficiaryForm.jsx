@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -15,14 +16,22 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 
+const emptyStringToUndefined = (value) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+};
 
 const formSchema = z.object({
   name: z.string().min(2, {
     message: "Name must be at least 2 characters.",
   }),
-  mobile: z.string().regex(/^\d{10}$/, {
-    message: "Mobile number must be 10 digits.",
-  }),
+  mobile: z.preprocess(
+    emptyStringToUndefined,
+    z.string().regex(/^\d{10}$/, {
+      message: "Mobile number must be 10 digits.",
+    }).optional()
+  ),
   account_number: z.string().min(8, {
     message: "Account number is too short.",
   }),
@@ -32,7 +41,12 @@ const formSchema = z.object({
   bank_name: z.string().min(2, {
     message: "Bank name is required.",
   }),
-  upi_id: z.string().optional(),
+  upi_id: z.preprocess(
+    emptyStringToUndefined,
+    z.string().regex(/^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/, {
+      message: "Invalid UPI ID format (e.g., username@bank)",
+    }).optional()
+  ),
 })
 
 export function BeneficiaryForm({ initialData, onSubmit, onCancel }) {
@@ -99,10 +113,11 @@ export function BeneficiaryForm({ initialData, onSubmit, onCancel }) {
               name="mobile"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mobile Number</FormLabel>
+                  <FormLabel>Mobile Number (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="9876543210" {...field} />
                   </FormControl>
+                  <FormDescription>Leave blank if you do not want to save a mobile number.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -156,10 +171,11 @@ export function BeneficiaryForm({ initialData, onSubmit, onCancel }) {
               name="upi_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>UPI ID</FormLabel>
+                  <FormLabel>UPI ID (Optional)</FormLabel>
                   <FormControl>
                     <Input placeholder="user@upi" {...field} />
                   </FormControl>
+                  <FormDescription>Only needed if you want to pay this beneficiary via UPI.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

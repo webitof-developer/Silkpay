@@ -1,31 +1,63 @@
-'use client';
+"use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { api } from '@/services/api';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, Bell, Shield, Wallet, Code, Save, ChevronDown, ChevronUp, KeyRound, Building2, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { api } from "@/services/api";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  User,
+  Bell,
+  Shield,
+  Wallet,
+  Code,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  KeyRound,
+  Building2,
+  Eye,
+  EyeOff,
+  Activity,
+  ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
-import { PRESET_AVATARS, DEFAULT_AVATAR } from '@/lib/constants';
-import { getMerchantProfile, updateMerchantProfile, changePassword } from '@/services/merchantService';
+import { PRESET_AVATARS, DEFAULT_AVATAR } from "@/lib/constants";
+import {
+  getMerchantProfile,
+  updateMerchantProfile,
+  changePassword,
+} from "@/services/merchantService";
 
 // Local avatars removed - using shared constants
 
-import { RoleGuard } from '@/components/guards/RoleGuard';
+import { RoleGuard } from "@/components/guards/RoleGuard";
 
 // ... imports
 
 export default function SettingsPage() {
   return (
-    <RoleGuard allowedRoles={['ADMIN']}>
+    <RoleGuard allowedRoles={["ADMIN"]}>
       <Suspense fallback={<div>Loading settings...</div>}>
         <SettingsContent />
       </Suspense>
@@ -46,12 +78,14 @@ function SettingsContent() {
 
   // Check URL for auto-open
   useEffect(() => {
-    const section = searchParams?.get('section');
-    if (section === 'change-password') {
+    const section = searchParams?.get("section");
+    if (section === "change-password") {
       setPasswordSectionOpen(true);
       // Scroll to security section
       setTimeout(() => {
-        document.getElementById('security-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document
+          .getElementById("security-section")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 100);
     }
   }, [searchParams]);
@@ -61,15 +95,16 @@ function SettingsContent() {
       try {
         const data = await getMerchantProfile();
         setSettings(data);
-        
+
         // Check if Silkpay credentials are missing
         const hasMerchantId = data.silkpay_config?.merchant_id;
         const hasSecretKey = data.silkpay_config?.secret_key;
-        
+
         if (!hasMerchantId || !hasSecretKey) {
-          toast.warning('Silkpay credentials not configured', {
-            description: 'Please set your Silkpay Merchant ID and Secret Key in Account Information to enable payouts and balance checks.',
-            duration: 5000
+          toast.warning("Silkpay credentials not configured", {
+            description:
+              "Please set your Silkpay Merchant ID and Secret Key in Account Information to enable payouts and balance checks.",
+            duration: 5000,
           });
         }
       } catch (error) {
@@ -82,47 +117,53 @@ function SettingsContent() {
   }, []);
 
   const updateLocalSetting = (section, data) => {
-      setHasChanges(true);
-      setSettings(prev => {
-          const newSettings = JSON.parse(JSON.stringify(prev));
-          if (section === 'avatar') newSettings.avatar = data.avatar;
-          if (section === 'account') {
-            if (data.username !== undefined) newSettings.username = data.username;
-            if (data.name !== undefined) newSettings.name = data.name;
-          }
-          if (section === 'notifications') newSettings.notifications = { ...prev.notifications, ...data };
-          if (section === 'webhook') newSettings.webhook = { ...prev.webhook, ...data };
-          if (section === 'security') newSettings.security = { ...prev.security, ...data };
-          if (section === 'session') newSettings.session = { ...prev.session, timeout: data.timeout };
-          return newSettings;
-      });
+    setHasChanges(true);
+    setSettings((prev) => {
+      const newSettings = JSON.parse(JSON.stringify(prev));
+      if (section === "avatar") newSettings.avatar = data.avatar;
+      if (section === "account") {
+        if (data.username !== undefined) newSettings.username = data.username;
+        if (data.name !== undefined) newSettings.name = data.name;
+      }
+      if (section === "notifications")
+        newSettings.notifications = { ...prev.notifications, ...data };
+      if (section === "webhook")
+        newSettings.webhook = { ...prev.webhook, ...data };
+      if (section === "security")
+        newSettings.security = { ...prev.security, ...data };
+      if (section === "session")
+        newSettings.session = { ...prev.session, timeout: data.timeout };
+      return newSettings;
+    });
   };
 
   const saveAllSettings = async () => {
-      setSaving(true);
-      try {
-          await updateMerchantProfile(settings);
-          
-          // Notify other components (Header) about the update
-          window.dispatchEvent(new CustomEvent('settings-updated', { detail: settings }));
+    setSaving(true);
+    try {
+      await updateMerchantProfile(settings);
 
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          setHasChanges(false);
-          toast.success('Settings saved successfully');
-      } catch (error) {
-          console.error("Failed to save settings", error);
-          toast.error(error.message || "Failed to save settings");
-      } finally {
-          setSaving(false);
-      }
+      // Notify other components (Header) about the update
+      window.dispatchEvent(
+        new CustomEvent("settings-updated", { detail: settings }),
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setHasChanges(false);
+      toast.success("Settings saved successfully");
+    } catch (error) {
+      console.error("Failed to save settings", error);
+      toast.error(error.message || "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const oldPassword = formData.get('oldPassword');
-    const newPassword = formData.get('newPassword');
-    const confirmPassword = formData.get('confirmPassword');
+    const oldPassword = formData.get("oldPassword");
+    const newPassword = formData.get("newPassword");
+    const confirmPassword = formData.get("confirmPassword");
 
     if (newPassword !== confirmPassword) {
       toast.error("Passwords don't match");
@@ -142,7 +183,6 @@ function SettingsContent() {
       toast.success("Password changed successfully");
       e.target.reset();
       setPasswordSectionOpen(false);
-
     } catch (error) {
       toast.error(error.message || "Failed to change password");
     } finally {
@@ -154,88 +194,131 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-       <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-            <Button 
-                onClick={saveAllSettings} 
-                className="min-w-[140px]" 
-                disabled={!hasChanges || saving}
-            >
-                {saving ? (
-                    <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"></div>
-                        Saving...
-                    </>
-                ) : (
-                    <>
-                        <Save className="mr-2 h-4 w-4" /> Apply Changes
-                    </>
-                )}
-            </Button>
-       </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+        <Button
+          onClick={saveAllSettings}
+          className="min-w-[140px]"
+          disabled={!hasChanges || saving}
+        >
+          {saving ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"></div>
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" /> Apply Changes
+            </>
+          )}
+        </Button>
+      </div>
 
-       <div className="grid gap-6">
+      <Card className="border-white/10 bg-white/5 backdrop-blur-xl">
+        <CardContent className="flex flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/20">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">Backend status</p>
+              <p className="text-sm text-muted-foreground">
+                Check uptime, response time, and the current API endpoint before
+                testing payouts or auth flows.
+              </p>
+            </div>
+          </div>
 
-            {/* 0. Account Info */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Account Information</CardTitle>
-                    <CardDescription>Update your account details and preferences</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-6 sm:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label>Merchant Name</Label>
-                        <Input 
-                            value={settings?.name || ''} 
-                            onChange={(e) => updateLocalSetting('account', { name: e.target.value })}
-                            placeholder="Your business name"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Email Address (Read Only)</Label>
-                        <div className="p-3 bg-muted rounded-md text-sm">{settings?.email}</div>
-                    </div>
-                    <div className="space-y-2">
-                         <Label>Username</Label>
-                         <Input 
-                             value={settings?.username || ''} 
-                             onChange={(e) => updateLocalSetting('account', { username: e.target.value })}
-                             placeholder="Set a username"
-                         />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                        <Label>Account Status</Label>
-                        <div className="pt-2 ps-1"><StatusBadge status={settings?.status} /></div>
-                    </div>
-                </CardContent>
-            </Card>
-            
-            {/* 1. Profile Appearance */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Profile Appearance</CardTitle>
-                    <CardDescription>Choose your profile picture</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-wrap gap-3">
-                        {PRESET_AVATARS.map((avatar, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => updateLocalSetting('avatar', { avatar })}
-                                className={cn(
-                                    "h-16 w-16 rounded-full overflow-hidden border-2 transition-all hover:scale-110",
-                                    (settings.avatar || DEFAULT_AVATAR) === avatar ? "border-primary ring-4 ring-primary/20" : "border-border"
-                                )}
-                            >
-                                <img src={avatar} alt={`Avatar ${idx + 1}`} className="h-full w-full object-cover" />
-                            </button>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+          <Button asChild className="w-full sm:w-auto">
+            <Link href="/backend-status">
+              Open Backend Status
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
-            {/* 2. Notifications */}
-            {/* <Card>
+      <div className="grid gap-6">
+        {/* 0. Account Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" /> Account Information
+            </CardTitle>
+            <CardDescription>
+              Update your account details and preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Merchant Name</Label>
+              <Input
+                value={settings?.name || ""}
+                onChange={(e) =>
+                  updateLocalSetting("account", { name: e.target.value })
+                }
+                placeholder="Your business name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email Address (Read Only)</Label>
+              <div className="p-3 bg-muted rounded-md text-sm">
+                {settings?.email}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input
+                value={settings?.username || ""}
+                onChange={(e) =>
+                  updateLocalSetting("account", { username: e.target.value })
+                }
+                placeholder="Set a username"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Account Status</Label>
+              <div className="pt-2 ps-1">
+                <StatusBadge status={settings?.status} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 1. Profile Appearance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" /> Profile Appearance
+            </CardTitle>
+            <CardDescription>Choose your profile picture</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {PRESET_AVATARS.map((avatar, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => updateLocalSetting("avatar", { avatar })}
+                  className={cn(
+                    "h-16 w-16 rounded-full overflow-hidden border-2 transition-all hover:scale-110",
+                    (settings.avatar || DEFAULT_AVATAR) === avatar
+                      ? "border-primary ring-4 ring-primary/20"
+                      : "border-border",
+                  )}
+                >
+                  <img
+                    src={avatar}
+                    alt={`Avatar ${idx + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 2. Notifications */}
+        {/* <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
                 </CardHeader>
@@ -257,124 +340,149 @@ function SettingsContent() {
                 </CardContent>
             </Card> */}
 
-            {/* 3. API & Webhooks */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Code className="h-5 w-5" /> API & Webhooks</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-2">
-                        <Label>Silkpay Webhook URL (Read Only)</Label>
-                        <div className="p-3 bg-muted rounded-md text-sm font-mono break-all">
-                            {settings.silkpay_webhook_url || `${window.location.origin}/api/webhook/silkpay`}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            This URL receives payment status updates from Silkpay
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
+        {/* 3. API & Webhooks */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Code className="h-5 w-5" /> API & Webhooks
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <Label>Silkpay Webhook URL (Read Only)</Label>
+              <div className="p-3 bg-muted rounded-md text-sm font-mono break-all">
+                {settings.silkpay_webhook_url ||
+                  `${window.location.origin}/api/webhook/silkpay`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This URL receives payment status updates from Silkpay
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* 4. Security with Change Password */}
-            <Card id="security-section">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Security</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <Label className="text-base">Two-Factor Auth (2FA)</Label>
-                        <Switch 
-                            checked={settings.security?.two_factor_enabled}
-                            onCheckedChange={(checked) => updateLocalSetting('security', { two_factor_enabled: checked })}
-                        />
-                    </div>
+        {/* 4. Security with Change Password */}
+        <Card id="security-section">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" /> Security
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <Label className="text-base">Two-Factor Auth (2FA)</Label>
+              <Switch
+                checked={settings.security?.two_factor_enabled}
+                onCheckedChange={(checked) =>
+                  updateLocalSetting("security", {
+                    two_factor_enabled: checked,
+                  })
+                }
+              />
+            </div>
 
-                    <div className="border-t pt-6">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-base cursor-pointer" onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}>
-                                Change Password
-                            </Label>
-                            <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}
-                                className="h-8 w-8 p-0"
-                            >
-                                {passwordSectionOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </Button>
-                        </div>
-                            
-                            <div className={cn(
-                                "grid transition-all duration-200 ease-in-out",
-                                passwordSectionOpen ? "grid-rows-[1fr] opacity-100 pt-4" : "grid-rows-[0fr] opacity-0"
-                            )}>
-                                <div className="overflow-hidden">
-                                    <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="oldPassword">Current Password</Label>
-                                            <Input
-                                                id="oldPassword"
-                                                name="oldPassword"
-                                                type="password"
-                                                required
-                                                placeholder="Enter current password"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="newPassword">New Password</Label>
-                                            <Input
-                                                id="newPassword"
-                                                name="newPassword"
-                                                type="password"
-                                                required
-                                                minLength={6}
-                                                placeholder="Enter new password (min 6 chars)"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="confirmPassword">Confirm Password</Label>
-                                            <Input
-                                                id="confirmPassword"
-                                                name="confirmPassword"
-                                                type="password"
-                                                required
-                                                minLength={6}
-                                                placeholder="Confirm new password"
-                                            />
-                                        </div>
-                                        <Button type="submit" className="w-full" disabled={changingPassword}>
-                                            {changingPassword ? "Changing..." : "Change Password"}
-                                        </Button>
-                                    </form>
-                                </div>
-                            </div>
-                    </div>
-                </CardContent>
-             </Card>
-        </div>
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between">
+                <Label
+                  className="text-base cursor-pointer"
+                  onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}
+                >
+                  Change Password
+                </Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPasswordSectionOpen(!passwordSectionOpen)}
+                  className="h-8 w-8 p-0"
+                >
+                  {passwordSectionOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
 
+              <div
+                className={cn(
+                  "grid transition-all duration-200 ease-in-out",
+                  passwordSectionOpen
+                    ? "grid-rows-[1fr] opacity-100 pt-4"
+                    : "grid-rows-[0fr] opacity-0",
+                )}
+              >
+                <div className="overflow-hidden">
+                  <form
+                    onSubmit={handleChangePassword}
+                    className="space-y-4 max-w-md"
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="oldPassword">Current Password</Label>
+                      <Input
+                        id="oldPassword"
+                        name="oldPassword"
+                        type="password"
+                        required
+                        placeholder="Enter current password"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        name="newPassword"
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Enter new password (min 6 chars)"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        required
+                        minLength={6}
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={changingPassword}
+                    >
+                      {changingPassword ? "Changing..." : "Change Password"}
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
+    </div>
   );
 }
 
 // Secret Key Input Component with Eye Toggle
 function SecretKeyInput({ value, onChange }) {
   const [showKey, setShowKey] = useState(false);
-  
+
   return (
     <div className="flex items-center gap-2">
-      <Input 
+      <Input
         type={showKey ? "text" : "password"}
-        value={value || ''} 
+        value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Your Silkpay secret key"
         className="flex-1"
       />
-      <Button 
+      <Button
         type="button"
-        variant="outline" 
-        size="icon" 
+        variant="outline"
+        size="icon"
         onClick={() => setShowKey(!showKey)}
       >
         {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

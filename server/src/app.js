@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./shared/config/database');
 const logger = require('./shared/utils/logger');
 const errorHandler = require('./shared/middleware/errorHandler');
+const { renderBackendStatusPage } = require('./shared/views/backendStatusPage');
 
 const app = express();
 
@@ -117,20 +118,22 @@ app.get('/api/system/ip', async (req, res) => {
   }
 });
 
-// System IP Check (for whitelisting)
-app.get('/api/system/ip', async (req, res) => {
-  try {
-    const axios = require('axios');
-    const response = await axios.get('https://api.ipify.org?format=json');
-    res.json({ ip: response.data.ip });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch public IP' });
-  }
-});
-
-//check
+// Root status page for browsers and quick manual checks
 app.get('/', (req, res) => {
-  res.status(200).send("BACKEND working");
+  const healthSnapshot = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  };
+
+  res.status(200).send(
+    renderBackendStatusPage({
+      req,
+      health: healthSnapshot,
+      timestamp: healthSnapshot.timestamp,
+      uptimeSeconds: healthSnapshot.uptime,
+    }),
+  );
 });
 
 // API Routes

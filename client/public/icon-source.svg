@@ -1,0 +1,18 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded square background -->
+  <rect width="1024" height="1024" rx="224" fill="#6C5DD3"/>
+  <!-- Glass decorative circles -->
+  <circle cx="308" cy="276" r="210" fill="white" fill-opacity="0.10"/>
+  <circle cx="748" cy="770" r="168" fill="white" fill-opacity="0.06"/>
+  <!-- Bold S lettermark -->
+  <text
+    x="512"
+    y="512"
+    text-anchor="middle"
+    dominant-baseline="central"
+    fill="white"
+    font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+    font-size="580"
+    font-weight="800"
+  >S</text>
+</svg>

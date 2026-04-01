@@ -40,6 +40,7 @@ import {
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import { isAdmin } from '@/services/authService';
+import { BrandWordmark } from "@/components/brand/BrandMark";
 
 export function Header() {
   const pathname = usePathname();
@@ -104,6 +105,7 @@ export function Header() {
       'beneficiaries': 'Beneficiaries',
       'bank-account': 'Bank Account',
       'merchant': 'Merchant Center',
+      'backend-status': 'Backend Status',
       'settings': 'Settings',
       'new': 'Create New',
     };
@@ -167,9 +169,10 @@ export function Header() {
                 <span className="sr-only">Toggle Menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[240px] p-0 bg-sidebar border-sidebar-border">
+            <SheetContent side="left" className="w-[260px] p-0 bg-sidebar border-sidebar-border">
               <div className="flex h-16 items-center border-b px-6 border-sidebar-border">
-                <SheetTitle className="text-xl font-bold text-primary">SilkPay</SheetTitle>
+                <SheetTitle className="sr-only">SilkPay navigation</SheetTitle>
+                <BrandWordmark iconClassName="h-8 w-8" textClassName="text-xl" />
               </div>
               <NavContent pathname={pathname} />
             </SheetContent>
